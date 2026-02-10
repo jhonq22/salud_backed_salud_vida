@@ -1,0 +1,155 @@
+const db = require('../config/db');
+
+// 1. Obtener Estados
+const getEstados = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT estado as label, id_estado as value FROM estados ORDER BY estado ASC'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 2. Obtener Municipios
+const getMunicipiosByEstado = async (req, res) => {
+    const { id_estado } = req.params;
+    try {
+        const [rows] = await db.query(
+            'SELECT municipio as label, id_municipio as value FROM municipios WHERE id_estado = ? ORDER BY municipio ASC',
+            [id_estado]
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 3. Obtener Parroquias
+const getParroquiasByMunicipio = async (req, res) => {
+    const { id_municipio } = req.params;
+    try {
+        const [rows] = await db.query(
+            'SELECT parroquia as label, id_parroquia as value FROM parroquias WHERE id_municipio = ? ORDER BY parroquia ASC',
+            [id_municipio]
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 4. Estatus de Solicitudes
+const getEstatusSolicitudes = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT nombre_estatus as label, id as value FROM estatus_solicitudes WHERE estatus = 1'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 5. Tipo de Operaciones
+const getTipoOperaciones = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT tipo_operacion as label, id as value FROM tipo_operaciones WHERE estatus = 1'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 6. Nivel de Estudios
+const getNivelEstudios = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT estudio as label, id as value FROM nivel_estudios WHERE estatus = 1 ORDER BY id ASC'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 7. Etnias Indígenas
+const getEtniasIndigenas = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT etnia as label, id as value FROM etnia_indigenas WHERE estatus = 1 ORDER BY etnia ASC'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 8. Obtener Países
+const getPaises = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT nombre as label, id as value FROM paises ORDER BY nombre ASC'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 9. Obtener Tipo de Marcapasos (NUEVO)
+const getTiposMarcapasos = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT tipo as label, id as value FROM tipo_marca_pasos WHERE estatus = 1 ORDER BY tipo ASC'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 10. Obtener Marcas por Tipo (NUEVO)
+const getMarcasByTipo = async (req, res) => {
+    const { id_tipo } = req.params;
+    try {
+        const [rows] = await db.query(
+            'SELECT marca as label, id as value FROM marcas WHERE tipo_marca_id = ? AND estatus = 1 ORDER BY marca ASC',
+            [id_tipo]
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 11. Obtener Modelos por Marca (NUEVO)
+const getModelosByMarca = async (req, res) => {
+    const { id_marca } = req.params;
+    try {
+        const [rows] = await db.query(
+            'SELECT modelo as label, id as value FROM modelos WHERE marca_id = ? AND estatus = 1 ORDER BY modelo ASC',
+            [id_marca]
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+module.exports = {
+    getEstados,
+    getMunicipiosByEstado,
+    getParroquiasByMunicipio,
+    getEstatusSolicitudes,
+    getTipoOperaciones,
+    getNivelEstudios,
+    getEtniasIndigenas,
+    getPaises,
+    getTiposMarcapasos,
+    getMarcasByTipo,
+    getModelosByMarca
+};
