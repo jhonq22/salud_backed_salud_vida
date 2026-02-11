@@ -30,14 +30,36 @@ const ImplantacionController = {
     // --- 3. NUEVO: ELECTRODO AURICULAR (Incluye modelo, serial y medida) ---
     async saveElectrodoAuricular(req, res) {
         try {
-            const { solicitud_paciente_id, marca_id, modelo, serial, medida, modo_estimulacion } = req.body;
-            const [exist] = await db.query('SELECT id FROM electrodo_auricular_implantado WHERE solicitud_paciente_id = ? AND estatus = 1', [solicitud_paciente_id]);
-            if (exist.length > 0) return res.status(400).json({ message: "Ya existe un electrodo auricular registrado" });
+            // Agregamos r_modo a la desestructuración
+            const {
+                solicitud_paciente_id,
+                marca_id,
+                modelo,
+                serial,
+                medida,
+                modo_estimulacion,
+                r_modo // Nuevo campo
+            } = req.body;
 
-            await db.query('INSERT INTO electrodo_auricular_implantado (solicitud_paciente_id, marca_id, modelo, serial, medida, modo_estimulacion) VALUES (?, ?, ?, ?, ?, ?)',
-                [solicitud_paciente_id, marca_id, modelo, serial, medida, modo_estimulacion]);
+            const [exist] = await db.query(
+                'SELECT id FROM electrodo_auricular_implantado WHERE solicitud_paciente_id = ? AND estatus = 1',
+                [solicitud_paciente_id]
+            );
+
+            if (exist.length > 0) {
+                return res.status(400).json({ message: "Ya existe un electrodo auricular registrado" });
+            }
+
+            // Actualizamos la consulta INSERT con la nueva columna y el nuevo valor
+            await db.query(
+                'INSERT INTO electrodo_auricular_implantado (solicitud_paciente_id, marca_id, modelo, serial, medida, modo_estimulacion, r_modo) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [solicitud_paciente_id, marca_id, modelo, serial, medida, modo_estimulacion, r_modo]
+            );
+
             res.status(201).json({ message: "Electrodo auricular guardado" });
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
     },
 
     // --- 4. PARÁMETROS MEDIDOS VENTRICULAR ---
