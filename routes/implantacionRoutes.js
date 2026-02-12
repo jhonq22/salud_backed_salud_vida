@@ -9,6 +9,7 @@ router.post('/medidos-ventricular', ctrl.saveParametrosMedidosVent);
 router.post('/prog-ventricular', ctrl.saveParametrosProgVent);
 router.post('/medidos-auricular', ctrl.saveParametrosMedidosAur);
 router.post('/prog-auricular', ctrl.saveParametrosProgAur);
+router.post('/modo-estimulacion', ctrl.saveModoEstimulacion);
 
 router.get('/todo/:id', ctrl.getTodoPorSolicitud);
 

@@ -1,45 +1,36 @@
 const db = require('../config/db');
 
 const ImplantacionController = {
-    // --- 1. GENERADOR (Actualizado: modelo_id -> modelo) ---
+    // --- 1. GENERADOR ---
     async saveGenerador(req, res) {
         try {
-            const { solicitud_paciente_id, marca_id, modelo, serial } = req.body;
+            const { solicitud_paciente_id, marca_id, modelo_id, serial } = req.body;
             const [exist] = await db.query('SELECT id FROM Generador_implantado WHERE solicitud_paciente_id = ? AND estatus = 1', [solicitud_paciente_id]);
             if (exist.length > 0) return res.status(400).json({ message: "Ya existe un generador registrado" });
 
-            await db.query('INSERT INTO Generador_implantado (solicitud_paciente_id, marca_id, modelo, serial) VALUES (?, ?, ?, ?)',
-                [solicitud_paciente_id, marca_id, modelo, serial]);
+            await db.query('INSERT INTO Generador_implantado (solicitud_paciente_id, marca_id, modelo_id, serial) VALUES (?, ?, ?, ?)',
+                [solicitud_paciente_id, marca_id, modelo_id, serial]);
             res.status(201).json({ message: "Generador guardado" });
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
 
-    // --- 2. ELECTRODO VENTRICULAR (Actualizado: modelo_id -> modelo) ---
+    // --- 2. ELECTRODO VENTRICULAR ---
     async saveElectrodoVentricular(req, res) {
         try {
-            const { solicitud_paciente_id, marca_id, modelo, serial } = req.body;
+            const { solicitud_paciente_id, marca_id, modelo_id, serial } = req.body;
             const [exist] = await db.query('SELECT id FROM electrodo_verticular_implantado WHERE solicitud_paciente_id = ? AND estatus = 1', [solicitud_paciente_id]);
             if (exist.length > 0) return res.status(400).json({ message: "Ya existe un electrodo ventricular registrado" });
 
-            await db.query('INSERT INTO electrodo_verticular_implantado (solicitud_paciente_id, marca_id, modelo, serial) VALUES (?, ?, ?, ?)',
-                [solicitud_paciente_id, marca_id, modelo, serial]);
+            await db.query('INSERT INTO electrodo_verticular_implantado (solicitud_paciente_id, marca_id, modelo_id, serial) VALUES (?, ?, ?, ?)',
+                [solicitud_paciente_id, marca_id, modelo_id, serial]);
             res.status(201).json({ message: "Electrodo ventricular guardado" });
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
 
-    // --- 3. NUEVO: ELECTRODO AURICULAR (Incluye modelo, serial y medida) ---
+    // --- 3. ELECTRODO AURICULAR (Campos modo y r_modo eliminados) ---
     async saveElectrodoAuricular(req, res) {
         try {
-            // Agregamos r_modo a la desestructuración
-            const {
-                solicitud_paciente_id,
-                marca_id,
-                modelo,
-                serial,
-                medida,
-                modo_estimulacion,
-                r_modo // Nuevo campo
-            } = req.body;
+            const { solicitud_paciente_id, marca_id, modelo_id, serial, medida } = req.body;
 
             const [exist] = await db.query(
                 'SELECT id FROM electrodo_auricular_implantado WHERE solicitud_paciente_id = ? AND estatus = 1',
@@ -50,10 +41,9 @@ const ImplantacionController = {
                 return res.status(400).json({ message: "Ya existe un electrodo auricular registrado" });
             }
 
-            // Actualizamos la consulta INSERT con la nueva columna y el nuevo valor
             await db.query(
-                'INSERT INTO electrodo_auricular_implantado (solicitud_paciente_id, marca_id, modelo, serial, medida, modo_estimulacion, r_modo) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [solicitud_paciente_id, marca_id, modelo, serial, medida, modo_estimulacion, r_modo]
+                'INSERT INTO electrodo_auricular_implantado (solicitud_paciente_id, marca_id, modelo_id, serial, medida) VALUES (?, ?, ?, ?, ?)',
+                [solicitud_paciente_id, marca_id, modelo_id, serial, medida]
             );
 
             res.status(201).json({ message: "Electrodo auricular guardado" });
@@ -62,7 +52,25 @@ const ImplantacionController = {
         }
     },
 
-    // --- 4. PARÁMETROS MEDIDOS VENTRICULAR ---
+    // --- 4. NUEVA FUNCIÓN: MODO ESTIMULACIÓN ---
+    async saveModoEstimulacion(req, res) {
+        try {
+            const { solicitud_paciente_id, modo_estimulacion, r_modo } = req.body;
+
+            // r_modo suele venir como string 'Si'/'No' del front, lo convertimos a boolean/tinint
+            const rModoValue = (r_modo === 'Si' || r_modo === true || r_modo === 1) ? 1 : 0;
+
+            await db.query(
+                'INSERT INTO modo_estimulacion_implantado (solicitud_paciente_id, modo_estimulacion, r_modo) VALUES (?, ?, ?)',
+                [solicitud_paciente_id, modo_estimulacion, rModoValue]
+            );
+            res.status(201).json({ message: "Modo de estimulación guardado" });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    },
+
+    // --- 5. PARÁMETROS MEDIDOS VENTRICULAR ---
     async saveParametrosMedidosVent(req, res) {
         try {
             const { solicitud_paciente_id, umbral_captura, impedancia, duracion, modo_estimulacion } = req.body;
@@ -72,7 +80,7 @@ const ImplantacionController = {
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
 
-    // --- 5. PARÁMETROS PROGRAMACIÓN VENTRICULAR ---
+    // --- 6. PARÁMETROS PROGRAMACIÓN VENTRICULAR ---
     async saveParametrosProgVent(req, res) {
         try {
             const { solicitud_paciente_id, amplitud_r, fc_minima } = req.body;
@@ -82,7 +90,7 @@ const ImplantacionController = {
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
 
-    // --- 6. PARÁMETROS MEDIDOS AURICULAR ---
+    // --- 7. PARÁMETROS MEDIDOS AURICULAR ---
     async saveParametrosMedidosAur(req, res) {
         try {
             const { solicitud_paciente_id, umbral_captura, impedancia, duracion, modo_estimulacion } = req.body;
@@ -92,7 +100,7 @@ const ImplantacionController = {
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
 
-    // --- 7. PARÁMETROS PROGRAMACIÓN AURICULAR ---
+    // --- 8. PARÁMETROS PROGRAMACIÓN AURICULAR ---
     async saveParametrosProgAur(req, res) {
         try {
             const { solicitud_paciente_id, amplitud_a, fc_minima } = req.body;
@@ -109,6 +117,7 @@ const ImplantacionController = {
             const [gen] = await db.query('SELECT * FROM Generador_implantado WHERE solicitud_paciente_id = ?', [id]);
             const [elecV] = await db.query('SELECT * FROM electrodo_verticular_implantado WHERE solicitud_paciente_id = ?', [id]);
             const [elecA] = await db.query('SELECT * FROM electrodo_auricular_implantado WHERE solicitud_paciente_id = ?', [id]);
+            const [modoEst] = await db.query('SELECT * FROM modo_estimulacion_implantado WHERE solicitud_paciente_id = ?', [id]);
             const [medV] = await db.query('SELECT * FROM parametro_medidos_ventricular_implantado WHERE solicitud_paciente_id = ?', [id]);
             const [progV] = await db.query('SELECT * FROM parametro_programacion_ventricular_implantado WHERE solicitud_paciente_id = ?', [id]);
             const [medA] = await db.query('SELECT * FROM parametro_medidos_auricular_implantado WHERE solicitud_paciente_id = ?', [id]);
@@ -118,6 +127,7 @@ const ImplantacionController = {
                 generador: gen[0] || null,
                 electrodoVentricular: elecV[0] || null,
                 electrodoAuricular: elecA[0] || null,
+                modoEstimulacion: modoEst[0] || null,
                 medidosVentricular: medV[0] || null,
                 progVentricular: progV[0] || null,
                 medidosAuricular: medA[0] || null,

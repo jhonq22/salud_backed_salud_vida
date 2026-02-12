@@ -140,6 +140,55 @@ const getModelosByMarca = async (req, res) => {
     }
 };
 
+
+// 12. Obtener Relacionado Frecuencia Cardíaca
+const getRelacionadoFrecuencia = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT descripcion as label, id as value FROM lista_relacionado_frecuencia_cardiaca WHERE estatus = 1'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 13. Obtener Relacionado Trastornos Conducción
+const getTrastornosConduccion = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT descripcion as label, id as value FROM lista_relacionado_trastornos_conduccion WHERE estatus = 1'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 14. Obtener Relacionado Trastornos Funcionales
+const getTrastornosFuncionales = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT descripcion as label, id as value FROM lista_relacionado_trastornos_funcionales WHERE estatus = 1'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 15. Obtener Relacionado Trastornos Otros
+const getTrastornosOtros = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT descripcion as label, id as value FROM lista_relacionado_trastornos_otros WHERE estatus = 1'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 module.exports = {
     getEstados,
     getMunicipiosByEstado,
@@ -151,5 +200,9 @@ module.exports = {
     getPaises,
     getTiposMarcapasos,
     getMarcasByTipo,
-    getModelosByMarca
+    getModelosByMarca,
+    getRelacionadoFrecuencia,
+    getTrastornosConduccion,
+    getTrastornosFuncionales,
+    getTrastornosOtros
 };

@@ -19,4 +19,10 @@ router.get('/marcapasos-tipos', tipoListaController.getTiposMarcapasos);
 router.get('/marcapasos-marcas/:id_tipo', tipoListaController.getMarcasByTipo);
 router.get('/marcapasos-modelos/:id_marca', tipoListaController.getModelosByMarca);
 
+// Listas de Indicaciones Médicas
+router.get('/indicaciones-frecuencia', tipoListaController.getRelacionadoFrecuencia);
+router.get('/indicaciones-conduccion', tipoListaController.getTrastornosConduccion);
+router.get('/indicaciones-funcionales', tipoListaController.getTrastornosFuncionales);
+router.get('/indicaciones-otros', tipoListaController.getTrastornosOtros);
+
 module.exports = router;
