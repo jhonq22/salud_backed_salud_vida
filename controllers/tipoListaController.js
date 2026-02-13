@@ -189,6 +189,73 @@ const getTrastornosOtros = async (req, res) => {
     }
 };
 
+
+
+// ... (Tus métodos anteriores del 1 al 15 se mantienen igual)
+
+// 16. Obtener Anestesia (General/Local/Sedación)
+const getTecnicaGeneral = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT descripcion as label, id as value FROM lista_general_tecnica_procedimiento WHERE estatus = 1'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 17. Obtener Vía de Acceso
+const getViaAcceso = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT descripcion as label, id as value FROM lista_via_acesso_tecnica_procedimiento WHERE estatus = 1'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 18. Obtener Bolsillo MCP
+const getBolsilloMCP = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT descripcion as label, id as value FROM lista_bolsillo_mcp_tecnica_procedimiento WHERE estatus = 1'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 19. Obtener Colocación de Electrodos
+const getColocacionElectrodos = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT descripcion as label, id as value FROM lista_colocacion_electrodos_tecnica_procedimiento WHERE estatus = 1'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 20. Obtener Lugar de Estimulación
+const getLugarEstimulacion = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT descripcion as label, id as value FROM lista_lugar_estimulacion_tecnica_procedimiento WHERE estatus = 1'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+
+
+
 module.exports = {
     getEstados,
     getMunicipiosByEstado,
@@ -204,5 +271,10 @@ module.exports = {
     getRelacionadoFrecuencia,
     getTrastornosConduccion,
     getTrastornosFuncionales,
-    getTrastornosOtros
+    getTrastornosOtros,
+    getTecnicaGeneral,
+    getViaAcceso,
+    getBolsilloMCP,
+    getColocacionElectrodos,
+    getLugarEstimulacion
 };

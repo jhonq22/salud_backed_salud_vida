@@ -23,6 +23,7 @@ router.put('/verificar-documento/:id', solicitudController.updateVerificacionDoc
 router.put('/finalizar-verificacion/:id', solicitudController.finalizarVerificacion);
 router.put('/asignar-hospital/:id', solicitudController.asignarHospital);
 
-
+// Actualizaciones de tipo de operación y marcapaso
+router.put('/update-tipo-operacion-y-marca-paso/:id', solicitudController.updateTipoOperacionYMarcaPaso);
 
 module.exports = router;

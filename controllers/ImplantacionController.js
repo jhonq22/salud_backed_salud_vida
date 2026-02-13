@@ -5,8 +5,13 @@ const ImplantacionController = {
     async saveGenerador(req, res) {
         try {
             const { solicitud_paciente_id, marca_id, modelo_id, serial } = req.body;
-            const [exist] = await db.query('SELECT id FROM Generador_implantado WHERE solicitud_paciente_id = ? AND estatus = 1', [solicitud_paciente_id]);
-            if (exist.length > 0) return res.status(400).json({ message: "Ya existe un generador registrado" });
+            const [exist] = await db.query('SELECT id FROM Generador_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+
+            if (exist.length > 0) {
+                await db.query('UPDATE Generador_implantado SET marca_id = ?, modelo_id = ?, serial = ? WHERE solicitud_paciente_id = ?',
+                    [marca_id, modelo_id, serial, solicitud_paciente_id]);
+                return res.json({ message: "Generador actualizado" });
+            }
 
             await db.query('INSERT INTO Generador_implantado (solicitud_paciente_id, marca_id, modelo_id, serial) VALUES (?, ?, ?, ?)',
                 [solicitud_paciente_id, marca_id, modelo_id, serial]);
@@ -14,66 +19,74 @@ const ImplantacionController = {
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
 
-    // --- 2. ELECTRODO VENTRICULAR ---
+    // --- 2. ELECTRODO VENTRICULAR (Campo 'medida' agregado) ---
     async saveElectrodoVentricular(req, res) {
         try {
-            const { solicitud_paciente_id, marca_id, modelo_id, serial } = req.body;
-            const [exist] = await db.query('SELECT id FROM electrodo_verticular_implantado WHERE solicitud_paciente_id = ? AND estatus = 1', [solicitud_paciente_id]);
-            if (exist.length > 0) return res.status(400).json({ message: "Ya existe un electrodo ventricular registrado" });
+            const { solicitud_paciente_id, marca_id, modelo_id, serial, medida } = req.body;
+            const [exist] = await db.query('SELECT id FROM electrodo_verticular_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
 
-            await db.query('INSERT INTO electrodo_verticular_implantado (solicitud_paciente_id, marca_id, modelo_id, serial) VALUES (?, ?, ?, ?)',
-                [solicitud_paciente_id, marca_id, modelo_id, serial]);
+            if (exist.length > 0) {
+                await db.query('UPDATE electrodo_verticular_implantado SET marca_id = ?, modelo_id = ?, serial = ?, medida = ? WHERE solicitud_paciente_id = ?',
+                    [marca_id, modelo_id, serial, medida, solicitud_paciente_id]);
+                return res.json({ message: "Electrodo ventricular actualizado" });
+            }
+
+            await db.query('INSERT INTO electrodo_verticular_implantado (solicitud_paciente_id, marca_id, modelo_id, serial, medida) VALUES (?, ?, ?, ?, ?)',
+                [solicitud_paciente_id, marca_id, modelo_id, serial, medida]);
             res.status(201).json({ message: "Electrodo ventricular guardado" });
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
 
-    // --- 3. ELECTRODO AURICULAR (Campos modo y r_modo eliminados) ---
+    // --- 3. ELECTRODO AURICULAR ---
     async saveElectrodoAuricular(req, res) {
         try {
             const { solicitud_paciente_id, marca_id, modelo_id, serial, medida } = req.body;
-
-            const [exist] = await db.query(
-                'SELECT id FROM electrodo_auricular_implantado WHERE solicitud_paciente_id = ? AND estatus = 1',
-                [solicitud_paciente_id]
-            );
+            const [exist] = await db.query('SELECT id FROM electrodo_auricular_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
 
             if (exist.length > 0) {
-                return res.status(400).json({ message: "Ya existe un electrodo auricular registrado" });
+                await db.query('UPDATE electrodo_auricular_implantado SET marca_id = ?, modelo_id = ?, serial = ?, medida = ? WHERE solicitud_paciente_id = ?',
+                    [marca_id, modelo_id, serial, medida, solicitud_paciente_id]);
+                return res.json({ message: "Electrodo auricular actualizado" });
             }
 
-            await db.query(
-                'INSERT INTO electrodo_auricular_implantado (solicitud_paciente_id, marca_id, modelo_id, serial, medida) VALUES (?, ?, ?, ?, ?)',
-                [solicitud_paciente_id, marca_id, modelo_id, serial, medida]
-            );
-
+            await db.query('INSERT INTO electrodo_auricular_implantado (solicitud_paciente_id, marca_id, modelo_id, serial, medida) VALUES (?, ?, ?, ?, ?)',
+                [solicitud_paciente_id, marca_id, modelo_id, serial, medida]);
             res.status(201).json({ message: "Electrodo auricular guardado" });
-        } catch (e) {
-            res.status(500).json({ error: e.message });
-        }
+        } catch (e) { res.status(500).json({ error: e.message }); }
     },
 
-    // --- 4. NUEVA FUNCIÓN: MODO ESTIMULACIÓN ---
+    // --- 4. MODO ESTIMULACIÓN ---
     async saveModoEstimulacion(req, res) {
         try {
             const { solicitud_paciente_id, modo_estimulacion, r_modo } = req.body;
-
-            // r_modo suele venir como string 'Si'/'No' del front, lo convertimos a boolean/tinint
             const rModoValue = (r_modo === 'Si' || r_modo === true || r_modo === 1) ? 1 : 0;
 
-            await db.query(
-                'INSERT INTO modo_estimulacion_implantado (solicitud_paciente_id, modo_estimulacion, r_modo) VALUES (?, ?, ?)',
-                [solicitud_paciente_id, modo_estimulacion, rModoValue]
-            );
+            const [exist] = await db.query('SELECT id FROM modo_estimulacion_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+
+            if (exist.length > 0) {
+                await db.query('UPDATE modo_estimulacion_implantado SET modo_estimulacion = ?, r_modo = ? WHERE solicitud_paciente_id = ?',
+                    [modo_estimulacion, rModoValue, solicitud_paciente_id]);
+                return res.json({ message: "Modo de estimulación actualizado" });
+            }
+
+            await db.query('INSERT INTO modo_estimulacion_implantado (solicitud_paciente_id, modo_estimulacion, r_modo) VALUES (?, ?, ?)',
+                [solicitud_paciente_id, modo_estimulacion, rModoValue]);
             res.status(201).json({ message: "Modo de estimulación guardado" });
-        } catch (e) {
-            res.status(500).json({ error: e.message });
-        }
+        } catch (e) { res.status(500).json({ error: e.message }); }
     },
 
     // --- 5. PARÁMETROS MEDIDOS VENTRICULAR ---
     async saveParametrosMedidosVent(req, res) {
         try {
             const { solicitud_paciente_id, umbral_captura, impedancia, duracion, modo_estimulacion } = req.body;
+            const [exist] = await db.query('SELECT id FROM parametro_medidos_ventricular_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+
+            if (exist.length > 0) {
+                await db.query('UPDATE parametro_medidos_ventricular_implantado SET umbral_captura = ?, impedancia = ?, duracion = ?, modo_estimulacion = ? WHERE solicitud_paciente_id = ?',
+                    [umbral_captura, impedancia, duracion, modo_estimulacion, solicitud_paciente_id]);
+                return res.json({ message: "Mediciones ventriculares actualizadas" });
+            }
+
             await db.query('INSERT INTO parametro_medidos_ventricular_implantado (solicitud_paciente_id, umbral_captura, impedancia, duracion, modo_estimulacion) VALUES (?, ?, ?, ?, ?)',
                 [solicitud_paciente_id, umbral_captura, impedancia, duracion, modo_estimulacion]);
             res.status(201).json({ message: "Mediciones ventriculares guardadas" });
@@ -84,6 +97,14 @@ const ImplantacionController = {
     async saveParametrosProgVent(req, res) {
         try {
             const { solicitud_paciente_id, amplitud_r, fc_minima } = req.body;
+            const [exist] = await db.query('SELECT id FROM parametro_programacion_ventricular_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+
+            if (exist.length > 0) {
+                await db.query('UPDATE parametro_programacion_ventricular_implantado SET amplitud_r = ?, fc_minima = ? WHERE solicitud_paciente_id = ?',
+                    [amplitud_r, fc_minima, solicitud_paciente_id]);
+                return res.json({ message: "Programación ventricular actualizada" });
+            }
+
             await db.query('INSERT INTO parametro_programacion_ventricular_implantado (solicitud_paciente_id, amplitud_r, fc_minima) VALUES (?, ?, ?)',
                 [solicitud_paciente_id, amplitud_r, fc_minima]);
             res.status(201).json({ message: "Programación ventricular guardada" });
@@ -94,6 +115,14 @@ const ImplantacionController = {
     async saveParametrosMedidosAur(req, res) {
         try {
             const { solicitud_paciente_id, umbral_captura, impedancia, duracion, modo_estimulacion } = req.body;
+            const [exist] = await db.query('SELECT id FROM parametro_medidos_auricular_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+
+            if (exist.length > 0) {
+                await db.query('UPDATE parametro_medidos_auricular_implantado SET umbral_captura = ?, impedancia = ?, duracion = ?, modo_estimulacion = ? WHERE solicitud_paciente_id = ?',
+                    [umbral_captura, impedancia, duracion, modo_estimulacion, solicitud_paciente_id]);
+                return res.json({ message: "Mediciones auriculares actualizadas" });
+            }
+
             await db.query('INSERT INTO parametro_medidos_auricular_implantado (solicitud_paciente_id, umbral_captura, impedancia, duracion, modo_estimulacion) VALUES (?, ?, ?, ?, ?)',
                 [solicitud_paciente_id, umbral_captura, impedancia, duracion, modo_estimulacion]);
             res.status(201).json({ message: "Mediciones auriculares guardadas" });
@@ -104,34 +133,46 @@ const ImplantacionController = {
     async saveParametrosProgAur(req, res) {
         try {
             const { solicitud_paciente_id, amplitud_a, fc_minima } = req.body;
+            const [exist] = await db.query('SELECT id FROM parametro_programacion_auricular_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+
+            if (exist.length > 0) {
+                await db.query('UPDATE parametro_programacion_auricular_implantado SET amplitud_a = ?, fc_minima = ? WHERE solicitud_paciente_id = ?',
+                    [amplitud_a, fc_minima, solicitud_paciente_id]);
+                return res.json({ message: "Programación auricular actualizada" });
+            }
+
             await db.query('INSERT INTO parametro_programacion_auricular_implantado (solicitud_paciente_id, amplitud_a, fc_minima) VALUES (?, ?, ?)',
                 [solicitud_paciente_id, amplitud_a, fc_minima]);
             res.status(201).json({ message: "Programación auricular guardada" });
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
 
-    // --- GET COMPLETO ACTUALIZADO ---
+    // --- GET COMPLETO ---
     async getTodoPorSolicitud(req, res) {
         const { id } = req.params;
         try {
-            const [gen] = await db.query('SELECT * FROM Generador_implantado WHERE solicitud_paciente_id = ?', [id]);
-            const [elecV] = await db.query('SELECT * FROM electrodo_verticular_implantado WHERE solicitud_paciente_id = ?', [id]);
-            const [elecA] = await db.query('SELECT * FROM electrodo_auricular_implantado WHERE solicitud_paciente_id = ?', [id]);
-            const [modoEst] = await db.query('SELECT * FROM modo_estimulacion_implantado WHERE solicitud_paciente_id = ?', [id]);
-            const [medV] = await db.query('SELECT * FROM parametro_medidos_ventricular_implantado WHERE solicitud_paciente_id = ?', [id]);
-            const [progV] = await db.query('SELECT * FROM parametro_programacion_ventricular_implantado WHERE solicitud_paciente_id = ?', [id]);
-            const [medA] = await db.query('SELECT * FROM parametro_medidos_auricular_implantado WHERE solicitud_paciente_id = ?', [id]);
-            const [progA] = await db.query('SELECT * FROM parametro_programacion_auricular_implantado WHERE solicitud_paciente_id = ?', [id]);
+            const queries = [
+                db.query('SELECT * FROM Generador_implantado WHERE solicitud_paciente_id = ?', [id]),
+                db.query('SELECT * FROM electrodo_verticular_implantado WHERE solicitud_paciente_id = ?', [id]),
+                db.query('SELECT * FROM electrodo_auricular_implantado WHERE solicitud_paciente_id = ?', [id]),
+                db.query('SELECT * FROM modo_estimulacion_implantado WHERE solicitud_paciente_id = ?', [id]),
+                db.query('SELECT * FROM parametro_medidos_ventricular_implantado WHERE solicitud_paciente_id = ?', [id]),
+                db.query('SELECT * FROM parametro_programacion_ventricular_implantado WHERE solicitud_paciente_id = ?', [id]),
+                db.query('SELECT * FROM parametro_medidos_auricular_implantado WHERE solicitud_paciente_id = ?', [id]),
+                db.query('SELECT * FROM parametro_programacion_auricular_implantado WHERE solicitud_paciente_id = ?', [id])
+            ];
+
+            const results = await Promise.all(queries);
 
             res.json({
-                generador: gen[0] || null,
-                electrodoVentricular: elecV[0] || null,
-                electrodoAuricular: elecA[0] || null,
-                modoEstimulacion: modoEst[0] || null,
-                medidosVentricular: medV[0] || null,
-                progVentricular: progV[0] || null,
-                medidosAuricular: medA[0] || null,
-                progAuricular: progA[0] || null
+                generador: results[0][0][0] || null,
+                electrodoVentricular: results[1][0][0] || null,
+                electrodoAuricular: results[2][0][0] || null,
+                modoEstimulacion: results[3][0][0] || null,
+                medidosVentricular: results[4][0][0] || null,
+                progVentricular: results[5][0][0] || null,
+                medidosAuricular: results[6][0][0] || null,
+                progAuricular: results[7][0][0] || null
             });
         } catch (e) { res.status(500).json({ error: e.message }); }
     }

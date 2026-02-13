@@ -25,4 +25,11 @@ router.get('/indicaciones-conduccion', tipoListaController.getTrastornosConducci
 router.get('/indicaciones-funcionales', tipoListaController.getTrastornosFuncionales);
 router.get('/indicaciones-otros', tipoListaController.getTrastornosOtros);
 
+// Listas de Técnica de Procedimiento
+router.get('/tecnica-general', tipoListaController.getTecnicaGeneral);
+router.get('/via-acceso', tipoListaController.getViaAcceso);
+router.get('/bolsillo-mcp', tipoListaController.getBolsilloMCP);
+router.get('/colocacion-electrodos', tipoListaController.getColocacionElectrodos);
+router.get('/lugar-estimulacion', tipoListaController.getLugarEstimulacion);
+
 module.exports = router;

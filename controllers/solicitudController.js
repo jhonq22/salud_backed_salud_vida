@@ -4,18 +4,20 @@ const createSolicitud = async (req, res) => {
     const {
         paciente_id, centro_salud_id, posee_cedula_identidad, archivo_cedula_id,
         observacion_cedula, posee_informe_medico, archivo_informe_medico_id,
-        observacion_informe_medico, tipo_operacion_id, marcapaso
+        observacion_informe_medico, tipo_operacion_id, tipo_marca_paso_id, marcapaso
     } = req.body;
 
     try {
         const sql = `INSERT INTO registrar_solicitud_pacientes 
             (paciente_id, centro_salud_id, posee_cedula_identidad, archivo_cedula_id, observacion_cedula, 
-            posee_informe_medico, archivo_informe_medico_id, observacion_informe_medico, tipo_operacion_id, marcapaso) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            posee_informe_medico, archivo_informe_medico_id, observacion_informe_medico, tipo_operacion_id, tipo_marca_paso_id, marcapaso) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-        const [result] = await db.query(sql, [paciente_id, centro_salud_id, posee_cedula_identidad, archivo_cedula_id,
-            observacion_cedula, posee_informe_medico, archivo_informe_medico_id, observacion_informe_medico,
-            tipo_operacion_id, marcapaso]);
+        const [result] = await db.query(sql, [
+            paciente_id, centro_salud_id, posee_cedula_identidad, archivo_cedula_id,
+            observacion_cedula, posee_informe_medico, archivo_informe_medico_id,
+            observacion_informe_medico, tipo_operacion_id, tipo_marca_paso_id, marcapaso
+        ]);
 
         res.status(201).json({ message: 'Solicitud creada', id: result.insertId });
     } catch (error) {
@@ -25,6 +27,7 @@ const createSolicitud = async (req, res) => {
 
 const getSolicitudes = async (req, res) => {
     try {
+        // Al usar SELECT *, ya incluye tipo_marca_paso_id automáticamente
         const [rows] = await db.query('SELECT * FROM registrar_solicitud_pacientes');
         res.json(rows);
     } catch (error) {
@@ -40,6 +43,7 @@ const getSolicitudByPacienteId = async (req, res) => {
             SELECT 
                 s.*, 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
+                s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
                 DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_formateada
             FROM registrar_solicitud_pacientes s
@@ -65,6 +69,7 @@ const getSolicitudById = async (req, res) => {
                 s.*, 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
                 s.tipo_operacion_id,
+                s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
                 DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_formateada
             FROM registrar_solicitud_pacientes s
@@ -88,6 +93,7 @@ const getSolicitudesPendientesAreaAdministrativa = async (req, res) => {
             SELECT 
                 s.*, 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
+                s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
                 DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
@@ -111,6 +117,7 @@ const getSolicitudesPendientesAreaMedica = async (req, res) => {
             SELECT 
                 s.*, 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
+                s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
                 DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
@@ -126,15 +133,6 @@ const getSolicitudesPendientesAreaMedica = async (req, res) => {
     }
 };
 
-
-
-
-
-
-
-
-
-
 // --- API ADMINISTRATIVA: Solo 1 solicitud ---
 const getSolicitudesAdministrativas = async (req, res) => {
     try {
@@ -142,11 +140,12 @@ const getSolicitudesAdministrativas = async (req, res) => {
             SELECT 
                 s.*, 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.edad, p.fecha_nacimiento, p.correo, p.telefono_celular,
+                s.tipo_marca_paso_id,
                 DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
             WHERE s.estatus_solicitud_id = 1
-            ORDER BY s.fecha_creacion DESC LIMIT 1`; // Agregado LIMIT 1
+            ORDER BY s.fecha_creacion DESC LIMIT 1`;
 
         const [rows] = await db.query(sql);
         res.json(rows);
@@ -162,11 +161,12 @@ const getSolicitudesMedicas = async (req, res) => {
             SELECT 
                 s.*, 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
+                s.tipo_marca_paso_id,
                 DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
             WHERE s.estatus_solicitud_id = 2
-            ORDER BY s.fecha_creacion DESC LIMIT 1`; // Agregado LIMIT 1
+            ORDER BY s.fecha_creacion DESC LIMIT 1`;
 
         const [rows] = await db.query(sql);
         res.json(rows);
@@ -188,11 +188,11 @@ const updateEstatusFase = async (req, res) => {
 
 const updateDatosMedicos = async (req, res) => {
     const { id } = req.params;
-    const { tipo_operacion_id, marcapaso, centro_salud_id } = req.body;
+    const { tipo_operacion_id, tipo_marca_paso_id, marcapaso, centro_salud_id } = req.body;
     try {
         await db.query(
-            'UPDATE registrar_solicitud_pacientes SET tipo_operacion_id = ?, marcapaso = ?, centro_salud_id = ? WHERE id = ?',
-            [tipo_operacion_id, marcapaso, centro_salud_id, id]
+            'UPDATE registrar_solicitud_pacientes SET tipo_operacion_id = ?, tipo_marca_paso_id = ?, marcapaso = ?, centro_salud_id = ? WHERE id = ?',
+            [tipo_operacion_id, tipo_marca_paso_id, marcapaso, centro_salud_id, id]
         );
         res.json({ message: 'Datos médicos de la solicitud actualizados' });
     } catch (error) {
@@ -252,7 +252,6 @@ const finalizarVerificacion = async (req, res) => {
     }
 
     try {
-        // 1. Consultamos cómo quedaron los documentos (1 = aprobado, 0 o null = rechazado/pendiente)
         const [rows] = await db.query(
             'SELECT posee_cedula_identidad, posee_informe_medico FROM registrar_solicitud_pacientes WHERE id = ?',
             [id]
@@ -261,13 +260,8 @@ const finalizarVerificacion = async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
 
         const { posee_cedula_identidad, posee_informe_medico } = rows[0];
-
-        // 2. Lógica de Estatus:
-        // Si AMBOS son 1 -> Pasa a Médica (2)
-        // Si ALGUNO es 0 o null -> Pasa a Subsanar (4)
         let nuevoEstatus = (posee_cedula_identidad === 1 && posee_informe_medico === 1) ? 2 : 4;
 
-        // 3. Actualización triple: Estatus, Centro de Salud y usamos el ID para filtrar
         await db.query(
             `UPDATE registrar_solicitud_pacientes 
              SET estatus_solicitud_id = ?, 
@@ -287,7 +281,7 @@ const finalizarVerificacion = async (req, res) => {
 
 
 const asignarHospital = async (req, res) => {
-    const { id } = req.params; // registro_solicitud_id
+    const { id } = req.params;
     const { centro_salud_id, tipo_operacion_id } = req.body;
 
     try {
@@ -311,6 +305,50 @@ const asignarHospital = async (req, res) => {
     }
 };
 
+
+const updateTipoOperacionYMarcaPaso = async (req, res) => {
+    const { id } = req.params;
+    const { tipo_marca_paso_id, tipo_operacion_id } = req.body;
+
+    try {
+        let campos = [];
+        let valores = [];
+
+        if (tipo_marca_paso_id !== undefined && tipo_marca_paso_id !== null) {
+            campos.push("tipo_marca_paso_id = ?");
+            valores.push(tipo_marca_paso_id);
+        }
+
+        if (tipo_operacion_id !== undefined && tipo_operacion_id !== null) {
+            campos.push("tipo_operacion_id = ?");
+            valores.push(tipo_operacion_id);
+        }
+
+        if (campos.length === 0) {
+            return res.status(400).json({ message: 'No se enviaron datos válidos para actualizar' });
+        }
+
+        valores.push(id);
+
+        const sql = `UPDATE registrar_solicitud_pacientes SET ${campos.join(', ')} WHERE id = ?`;
+
+        const [result] = await db.query(sql, valores);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Solicitud no encontrada' });
+        }
+
+        res.json({ message: 'Campos de operación y marcapaso actualizados correctamente' });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+
+
+
+
 module.exports = {
     createSolicitud,
     getSolicitudes,
@@ -325,5 +363,6 @@ module.exports = {
     asignarHospital,
     getSolicitudesPendientesAreaMedica,
     getSolicitudesPendientesAreaAdministrativa,
-    getSolicitudById
+    getSolicitudById,
+    updateTipoOperacionYMarcaPaso
 };
