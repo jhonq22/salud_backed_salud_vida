@@ -253,7 +253,56 @@ const getLugarEstimulacion = async (req, res) => {
     }
 };
 
+// 21. Obtener Estudio de Inducción Hemodinamia
+const getListaInduccion = async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, descripcion FROM lista_estudio_induccion_isquemia WHERE estatus = 1 ORDER BY descripcion ASC');
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
 
+// 22. Obtener Dominancia
+const getDominancia = async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, descripcion FROM lista_dominancia WHERE estatus = 1 ORDER BY descripcion ASC');
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 23. Obtener Conclusiones Cateterismo
+const getListaConclusiones = async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, descripcion FROM lista_conclusiones_cateterismo WHERE estatus = 1 ORDER BY descripcion ASC');
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 24. Obtener Intervenciones Realizadas
+const getListaIntervenciones = async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, descripcion FROM lista_intervencion_realizada WHERE estatus = 1 ORDER BY descripcion ASC');
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+
+// 26. Obtener Plan de Diagnóstico de Egreso
+const getPlanDiagnosticoEgreso = async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, descripcion FROM lista_plan_diagnostico_egreso WHERE estatus = 1 ORDER BY descripcion ASC');
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
 
 
 module.exports = {
@@ -276,5 +325,10 @@ module.exports = {
     getViaAcceso,
     getBolsilloMCP,
     getColocacionElectrodos,
-    getLugarEstimulacion
+    getLugarEstimulacion,
+    getListaInduccion,
+    getDominancia,
+    getListaConclusiones,
+    getListaIntervenciones,
+    getPlanDiagnosticoEgreso
 };

@@ -19,40 +19,91 @@ const ImplantacionController = {
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
 
-    // --- 2. ELECTRODO VENTRICULAR (Campo 'medida' agregado) ---
+    // --- 2. ELECTRODO VENTRICULAR ---
+
     async saveElectrodoVentricular(req, res) {
         try {
-            const { solicitud_paciente_id, marca_id, modelo_id, serial, medida } = req.body;
-            const [exist] = await db.query('SELECT id FROM electrodo_verticular_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+            const {
+                solicitud_paciente_id,
+                marca_id,
+                modelo_id,
+                serial,
+                medida,
+                nueva_medida
+            } = req.body;
+
+            const [exist] = await db.query(
+                'SELECT id FROM electrodo_verticular_implantado WHERE solicitud_paciente_id = ?',
+                [solicitud_paciente_id]
+            );
 
             if (exist.length > 0) {
-                await db.query('UPDATE electrodo_verticular_implantado SET marca_id = ?, modelo_id = ?, serial = ?, medida = ? WHERE solicitud_paciente_id = ?',
-                    [marca_id, modelo_id, serial, medida, solicitud_paciente_id]);
+                await db.query(
+                    `UPDATE electrodo_verticular_implantado SET 
+                    marca_id = ?, 
+                    modelo_id = ?, 
+                    serial = ?, 
+                    medida = ?, 
+                    nueva_medida = ? 
+                 WHERE solicitud_paciente_id = ?`,
+                    [marca_id, modelo_id, serial, medida, nueva_medida, solicitud_paciente_id]
+                );
                 return res.json({ message: "Electrodo ventricular actualizado" });
             }
 
-            await db.query('INSERT INTO electrodo_verticular_implantado (solicitud_paciente_id, marca_id, modelo_id, serial, medida) VALUES (?, ?, ?, ?, ?)',
-                [solicitud_paciente_id, marca_id, modelo_id, serial, medida]);
+            await db.query(
+                `INSERT INTO electrodo_verticular_implantado 
+            (solicitud_paciente_id, marca_id, modelo_id, serial, medida, nueva_medida) 
+            VALUES (?, ?, ?, ?, ?, ?)`,
+                [solicitud_paciente_id, marca_id, modelo_id, serial, medida, nueva_medida]
+            );
             res.status(201).json({ message: "Electrodo ventricular guardado" });
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
     },
 
     // --- 3. ELECTRODO AURICULAR ---
     async saveElectrodoAuricular(req, res) {
         try {
-            const { solicitud_paciente_id, marca_id, modelo_id, serial, medida } = req.body;
-            const [exist] = await db.query('SELECT id FROM electrodo_auricular_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+            const {
+                solicitud_paciente_id,
+                marca_id,
+                modelo_id,
+                serial,
+                medida,
+                nueva_medida
+            } = req.body;
+
+            const [exist] = await db.query(
+                'SELECT id FROM electrodo_auricular_implantado WHERE solicitud_paciente_id = ?',
+                [solicitud_paciente_id]
+            );
 
             if (exist.length > 0) {
-                await db.query('UPDATE electrodo_auricular_implantado SET marca_id = ?, modelo_id = ?, serial = ?, medida = ? WHERE solicitud_paciente_id = ?',
-                    [marca_id, modelo_id, serial, medida, solicitud_paciente_id]);
+                await db.query(
+                    `UPDATE electrodo_auricular_implantado SET 
+                    marca_id = ?, 
+                    modelo_id = ?, 
+                    serial = ?, 
+                    medida = ?, 
+                    nueva_medida = ? 
+                 WHERE solicitud_paciente_id = ?`,
+                    [marca_id, modelo_id, serial, medida, nueva_medida, solicitud_paciente_id]
+                );
                 return res.json({ message: "Electrodo auricular actualizado" });
             }
 
-            await db.query('INSERT INTO electrodo_auricular_implantado (solicitud_paciente_id, marca_id, modelo_id, serial, medida) VALUES (?, ?, ?, ?, ?)',
-                [solicitud_paciente_id, marca_id, modelo_id, serial, medida]);
+            await db.query(
+                `INSERT INTO electrodo_auricular_implantado 
+            (solicitud_paciente_id, marca_id, modelo_id, serial, medida, nueva_medida) 
+            VALUES (?, ?, ?, ?, ?, ?)`,
+                [solicitud_paciente_id, marca_id, modelo_id, serial, medida, nueva_medida]
+            );
             res.status(201).json({ message: "Electrodo auricular guardado" });
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
     },
 
     // --- 4. MODO ESTIMULACIÓN ---

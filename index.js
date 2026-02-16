@@ -18,6 +18,10 @@ const implantacionRoutes = require('./routes/implantacionRoutes');
 const tecnicaRoutes = require('./routes/tecnicaRoutes');
 const complicacionesRoutes = require('./routes/ComplicacionesImplantadasRoutes');
 const indicacionesRoutes = require('./routes/indicacionesRoutes');
+const AntecedentesHemodinamiaRoutes = require('./routes/hemodinamia/antecedentesPersonalesHabitosRoutes');
+const cateterismoRoutes = require('./routes/hemodinamia/cateterismoRoutes');
+const cateterismoTerapeuticoRoutes = require('./routes/hemodinamia/cateterismoTerapeuticoRoutes');
+const egresoHemodinamiaRoutes = require('./routes/hemodinamia/egresoHemodinamiaRoutes');
 
 const app = express();
 
@@ -36,6 +40,10 @@ app.use('/api/implantacion', implantacionRoutes);
 app.use('/api/tecnica', tecnicaRoutes);
 app.use('/api/complicaciones', complicacionesRoutes);
 app.use('/api/indicaciones', indicacionesRoutes);
+app.use('/api/antecedentes-hemodinamia', AntecedentesHemodinamiaRoutes);
+app.use('/api/cateterismo', cateterismoRoutes);
+app.use('/api/cateterismo-terapeutico', cateterismoTerapeuticoRoutes);
+app.use('/api/egreso-hemodinamia', egresoHemodinamiaRoutes);
 
 // Ruta base de prueba
 app.get('/', (req, res) => {

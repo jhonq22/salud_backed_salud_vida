@@ -32,4 +32,15 @@ router.get('/bolsillo-mcp', tipoListaController.getBolsilloMCP);
 router.get('/colocacion-electrodos', tipoListaController.getColocacionElectrodos);
 router.get('/lugar-estimulacion', tipoListaController.getLugarEstimulacion);
 
+// Lista de Estudio de Inducción Hemodinamia
+router.get('/lista-induccion-isquemia', tipoListaController.getListaInduccion);
+router.get('/lista-dominancia', tipoListaController.getDominancia);
+
+// Listas de Cateterismo Terapéutico
+router.get('/lista-conclusiones-cateterismo', tipoListaController.getListaConclusiones);
+router.get('/lista-intervencion-realizada', tipoListaController.getListaIntervenciones);
+
+// Listas de Egreso Hemodinamia
+router.get('/lista-diagnostico-egreso', tipoListaController.getPlanDiagnosticoEgreso);
+
 module.exports = router;

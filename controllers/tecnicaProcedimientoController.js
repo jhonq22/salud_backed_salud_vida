@@ -4,9 +4,10 @@ const db = require('../config/db');
 const createTecnica = async (req, res) => {
     const {
         solicitud_paciente_id,
+        localizacion,           // <-- Nuevo campo
         general_id,
         via_acceso_id,
-        otros_via_acesso,
+        otro_via_acesso,        // <-- Nuevo campo corregido (otro_via_acesso)
         bolsillo_mcp_id,
         colocacion_electrodos_id,
         lugar_estimulacion_id,
@@ -29,9 +30,10 @@ const createTecnica = async (req, res) => {
             // 2. Si existe, hacemos UPDATE
             await db.query(
                 `UPDATE tecnica_procedimiento_implantado SET 
+                    localizacion = ?, 
                     general_id = ?, 
                     via_acceso_id = ?, 
-                    otros_via_acesso = ?, 
+                    otro_via_acesso = ?, 
                     bolsillo_mcp_id = ?, 
                     colocacion_electrodos_id = ?, 
                     lugar_estimulacion_id = ?, 
@@ -39,7 +41,7 @@ const createTecnica = async (req, res) => {
                     tamano_septum = ?
                 WHERE solicitud_paciente_id = ?`,
                 [
-                    general_id, via_acceso_id, otros_via_acesso,
+                    localizacion, general_id, via_acceso_id, otro_via_acesso,
                     bolsillo_mcp_id, colocacion_electrodos_id, lugar_estimulacion_id,
                     otros_lugar_estimulacion, tamano_septum, solicitud_paciente_id
                 ]
@@ -52,12 +54,12 @@ const createTecnica = async (req, res) => {
             // 3. Si no existe, hacemos INSERT
             const [result] = await db.query(
                 `INSERT INTO tecnica_procedimiento_implantado 
-                (solicitud_paciente_id, general_id, via_acceso_id, otros_via_acesso, 
+                (solicitud_paciente_id, localizacion, general_id, via_acceso_id, otro_via_acesso, 
                 bolsillo_mcp_id, colocacion_electrodos_id, lugar_estimulacion_id, 
                 otros_lugar_estimulacion, tamano_septum) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    solicitud_paciente_id, general_id, via_acceso_id, otros_via_acesso,
+                    solicitud_paciente_id, localizacion, general_id, via_acceso_id, otro_via_acesso,
                     bolsillo_mcp_id, colocacion_electrodos_id, lugar_estimulacion_id,
                     otros_lugar_estimulacion, tamano_septum
                 ]
@@ -83,8 +85,6 @@ const getTecnicaBySolicitud = async (req, res) => {
             [solicitudId]
         );
 
-        // Si no hay filas, retornamos null o un objeto vacío según prefieras, 
-        // pero 200 OK para que el front no lo trate como error fatal
         if (rows.length === 0) {
             return res.status(200).json(null);
         }
