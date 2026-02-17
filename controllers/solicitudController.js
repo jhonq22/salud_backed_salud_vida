@@ -123,7 +123,7 @@ const getSolicitudesPendientesAreaMedica = async (req, res) => {
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
             LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
-            WHERE s.estatus_solicitud_id IN (1, 2)
+            WHERE s.estatus_solicitud_id IN (3)
             ORDER BY s.fecha_creacion DESC`;
 
         const [rows] = await db.query(sql);
@@ -135,6 +135,9 @@ const getSolicitudesPendientesAreaMedica = async (req, res) => {
 
 // --- API ADMINISTRATIVA: Solo 1 solicitud ---
 const getSolicitudesAdministrativas = async (req, res) => {
+    // 1. Obtenemos el ID del parámetro de la ruta
+    const { id } = req.params;
+
     try {
         const sql = `
             SELECT 
@@ -144,10 +147,14 @@ const getSolicitudesAdministrativas = async (req, res) => {
                 DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
-            WHERE s.estatus_solicitud_id = 1
-            ORDER BY s.fecha_creacion DESC LIMIT 1`;
+            WHERE s.estatus_solicitud_id = 1 
+            AND s.id = ?`; // 2. Filtramos por estatus 2 y el ID específico
 
-        const [rows] = await db.query(sql);
+        // 3. Pasamos el [id] como segundo argumento para reemplazar el '?'
+        const [rows] = await db.query(sql, [id]);
+
+        // Opcional: Si buscas por ID, usualmente quieres el objeto directo, no un array.
+        // Si prefieres devolver el objeto directo usa: res.json(rows[0]);
         res.json(rows);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -245,36 +252,43 @@ const deleteSolicitud = async (req, res) => {
 // --- FINALIZAR PROCESO ADMINISTRATIVO ---
 const finalizarVerificacion = async (req, res) => {
     const { id } = req.params;
-    const { centro_salud_id } = req.body;
+    const { tipo_operacion_id, estatus_solicitud_id } = req.body;
 
-    if (!centro_salud_id) {
-        return res.status(400).json({ error: 'El Centro de Salud es obligatorio.' });
+    // Validación de campos obligatorios
+    if (!tipo_operacion_id || !estatus_solicitud_id) {
+        return res.status(400).json({
+            error: 'El tipo de operación y el estatus de la solicitud son obligatorios.'
+        });
     }
 
     try {
+        // 1. Verificamos que la solicitud exista antes de actualizar
         const [rows] = await db.query(
-            'SELECT posee_cedula_identidad, posee_informe_medico FROM registrar_solicitud_pacientes WHERE id = ?',
+            'SELECT id FROM registrar_solicitud_pacientes WHERE id = ?',
             [id]
         );
 
-        if (rows.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Solicitud no encontrada' });
+        }
 
-        const { posee_cedula_identidad, posee_informe_medico } = rows[0];
-        let nuevoEstatus = (posee_cedula_identidad === 1 && posee_informe_medico === 1) ? 2 : 4;
-
+        // 2. Actualizamos con los nuevos valores recibidos del front
+        // Se actualiza el tipo de operación y el estatus (1 para Rechazar, 3 para Operar según tu lógica)
         await db.query(
             `UPDATE registrar_solicitud_pacientes 
              SET estatus_solicitud_id = ?, 
-                 centro_salud_id = ? 
+                 tipo_operacion_id = ? 
              WHERE id = ?`,
-            [nuevoEstatus, centro_salud_id, id]
+            [estatus_solicitud_id, tipo_operacion_id, id]
         );
 
         res.json({
-            message: 'Verificación finalizada con éxito',
-            nuevo_estatus_id: nuevoEstatus
+            message: 'Verificación administrativa y decisión finalizada con éxito',
+            estatus_actualizado: estatus_solicitud_id
         });
+
     } catch (error) {
+        console.error("Error en finalizarVerificacion:", error);
         res.status(500).json({ error: error.message });
     }
 };

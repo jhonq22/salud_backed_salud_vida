@@ -6,7 +6,7 @@ const db = require('../../config/db');
  */
 const saveAntecedentes = async (req, res) => {
     const {
-        solicitud_paciente_id, hta, diabetes, erc, tabaquismo,
+        solicitud_paciente_id, hta, diabetes, dislipidemia, erc, tabaquismo,
         alergia_yodo, alergia_medicamentos, patologia_base, otra_patologia_base
     } = req.body;
 
@@ -18,18 +18,18 @@ const saveAntecedentes = async (req, res) => {
         if (exist.length > 0) {
             await db.query(
                 `UPDATE antecedentes_personales_hemodinamia SET 
-                hta = ?, diabetes = ?, erc = ?, tabaquismo = ?, alergia_yodo = ?, 
+                hta = ?, diabetes = ?, dislipidemia = ?, erc = ?, tabaquismo = ?, alergia_yodo = ?, 
                 alergia_medicamentos = ?, patologia_base = ?, otra_patologia_base = ?, fecha_actualizacion = CURRENT_TIMESTAMP
                 WHERE solicitud_paciente_id = ?`,
-                [hta, diabetes, erc, tabaquismo, alergia_yodo, alergia_medicamentos, patologia_base, otra_patologia_base, solicitud_paciente_id]
+                [hta, diabetes, dislipidemia, erc, tabaquismo, alergia_yodo, alergia_medicamentos, patologia_base, otra_patologia_base, solicitud_paciente_id]
             );
             return res.status(200).json({ message: 'Antecedentes actualizados con éxito' });
         } else {
             await db.query(
                 `INSERT INTO antecedentes_personales_hemodinamia 
-                (solicitud_paciente_id, hta, diabetes, erc, tabaquismo, alergia_yodo, alergia_medicamentos, patologia_base, otra_patologia_base) 
+                (solicitud_paciente_id, hta, diabetes, dislipidemia, erc, tabaquismo, alergia_yodo, alergia_medicamentos, patologia_base, otra_patologia_base) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [solicitud_paciente_id, hta, diabetes, erc, tabaquismo, alergia_yodo, alergia_medicamentos, patologia_base, otra_patologia_base]
+                [solicitud_paciente_id, hta, diabetes, dislipidemia, erc, tabaquismo, alergia_yodo, alergia_medicamentos, patologia_base, otra_patologia_base]
             );
             return res.status(201).json({ message: 'Antecedentes guardados con éxito' });
         }

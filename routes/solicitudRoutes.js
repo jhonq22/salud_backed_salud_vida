@@ -2,12 +2,23 @@ const express = require('express');
 const router = express.Router();
 const solicitudController = require('../controllers/solicitudController');
 
+
+const multer = require('multer');
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+
+const { subirExcelTemporal, obtenerPacientesTemporales } = require('../controllers/migrar_citas/MigrarCitasController');
+const { confirmarCitas } = require('../controllers/migrar_citas/confirmacionController');
+
+router.get('/ver-temporales', obtenerPacientesTemporales);
+
 // Rutas de Listado
 router.get('/', solicitudController.getSolicitudes);
 router.get('/pendientes', solicitudController.getSolicitudesPendientesAreaMedica);
 router.get('/pendientes-administrativas', solicitudController.getSolicitudesPendientesAreaAdministrativa);
 router.get('/pendientes-medicas', solicitudController.getSolicitudesPendientesAreaMedica);
-router.get('/administrativas', solicitudController.getSolicitudesAdministrativas); // Estatus 1
+router.get('/administrativas/:id', solicitudController.getSolicitudesAdministrativas); // Estatus 1
 router.get('/medicas', solicitudController.getSolicitudesMedicas);             // Estatus 2
 router.get('/paciente/:paciente_id', solicitudController.getSolicitudByPacienteId);
 router.get('/:id', solicitudController.getSolicitudById);
@@ -25,5 +36,10 @@ router.put('/asignar-hospital/:id', solicitudController.asignarHospital);
 
 // Actualizaciones de tipo de operación y marcapaso
 router.put('/update-tipo-operacion-y-marca-paso/:id', solicitudController.updateTipoOperacionYMarcaPaso);
+
+// Rutas de Migración de Citas
+router.post('/subir-excel-temporal', upload.single('archivo'), subirExcelTemporal);
+router.post('/confirmar-citas', confirmarCitas);
+
 
 module.exports = router;

@@ -22,6 +22,7 @@ const AntecedentesHemodinamiaRoutes = require('./routes/hemodinamia/antecedentes
 const cateterismoRoutes = require('./routes/hemodinamia/cateterismoRoutes');
 const cateterismoTerapeuticoRoutes = require('./routes/hemodinamia/cateterismoTerapeuticoRoutes');
 const egresoHemodinamiaRoutes = require('./routes/hemodinamia/egresoHemodinamiaRoutes');
+const configuracionDiasRoutes = require('./routes/configuracion_citas/configuracionDiasRoutes');
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/antecedentes-hemodinamia', AntecedentesHemodinamiaRoutes);
 app.use('/api/cateterismo', cateterismoRoutes);
 app.use('/api/cateterismo-terapeutico', cateterismoTerapeuticoRoutes);
 app.use('/api/egreso-hemodinamia', egresoHemodinamiaRoutes);
+app.use('/api/configuracion-dias', configuracionDiasRoutes);
 
 // Ruta base de prueba
 app.get('/', (req, res) => {
