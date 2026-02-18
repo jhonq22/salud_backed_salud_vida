@@ -16,7 +16,7 @@ const confirmarCitas = async (req, res) => {
     try {
         await connection.beginTransaction();
 
-        // 1. Buscar pendientes
+        // 1. Buscar registros en la tabla temporal con estatus 'en_espera'
         const [temporales] = await connection.query(
             'SELECT * FROM pacientes_cita_temporal WHERE estatus = "en_espera"'
         );
@@ -34,31 +34,48 @@ const confirmarCitas = async (req, res) => {
         for (const temp of temporales) {
             let pacienteId = null;
 
-            // 2. Verificar existencia del paciente
+            // 2. Verificar si el paciente ya existe por cédula
             const [existente] = await connection.query(
                 'SELECT id FROM pacientes WHERE cedula = ?',
                 [temp.cedula]
             );
 
             if (existente.length > 0) {
+                // --- ACTUALIZAR PACIENTE EXISTENTE ---
                 pacienteId = existente[0].id;
+                await connection.query(
+                    `UPDATE pacientes SET 
+                        codificacion_buen_gobierno = ?,
+                        estado_id = 24,
+                        municipio_id = 462,
+                        parroquia_id = 1117
+                     WHERE id = ?`,
+                    [temp.codificacion_buen_gobierno, pacienteId]
+                );
             } else {
-                // 3. Crear paciente si no existe
+                // --- INSERTAR NUEVO PACIENTE ---
+                // Se incluyen los datos geográficos por defecto y el código 1x10 del excel
                 const [nuevo] = await connection.query(
                     `INSERT INTO pacientes 
                     (cedula, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, 
-                     telefono_celular, correo, estatus, es_cedulado) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)`,
+                     telefono_celular, correo, codificacion_buen_gobierno, 
+                     estado_id, municipio_id, parroquia_id, estatus, es_cedulado) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 24, 462, 1117, 1, 1)`,
                     [
-                        temp.cedula, temp.primer_nombre, temp.segundo_nombre,
-                        temp.primer_apellido, temp.segundo_apellido,
-                        temp.telefono, temp.correo
+                        temp.cedula,
+                        temp.primer_nombre,
+                        temp.segundo_nombre,
+                        temp.primer_apellido,
+                        temp.segundo_apellido,
+                        temp.telefono,
+                        temp.correo,
+                        temp.codificacion_buen_gobierno
                     ]
                 );
                 pacienteId = nuevo.insertId;
             }
 
-            // 4. Crear Solicitud con el centro_salud_id seleccionado
+            // 3. Crear la solicitud de cita vinculada al hospital seleccionado
             await connection.query(
                 `INSERT INTO registrar_solicitud_pacientes 
                 (paciente_id, fecha_cita, estatus_solicitud_id, tipo_operacion_id, centro_salud_id, estatus, fecha_creacion) 
@@ -66,7 +83,7 @@ const confirmarCitas = async (req, res) => {
                 [pacienteId, temp.fecha_cita_asignada, centro_salud_id]
             );
 
-            // 5. Marcar temporal como procesado
+            // 4. Marcar el registro temporal como procesado para que no vuelva a aparecer
             await connection.query(
                 'UPDATE pacientes_cita_temporal SET estatus = "procesado" WHERE id = ?',
                 [temp.id]
@@ -78,13 +95,13 @@ const confirmarCitas = async (req, res) => {
         await connection.commit();
 
         res.json({
-            status: false, // Para que el front limpie la vista
+            status: false, // Cambiado a false según tu lógica para que el front limpie la vista
             msg: 'Confirmación exitosa',
             total_procesados: procesados
         });
 
     } catch (error) {
-        await connection.rollback();
+        if (connection) await connection.rollback();
         console.error("Error en confirmación:", error);
         res.status(500).json({
             status: true,
@@ -92,7 +109,7 @@ const confirmarCitas = async (req, res) => {
             error: error.message
         });
     } finally {
-        connection.release();
+        if (connection) connection.release();
     }
 };
 

@@ -89,13 +89,16 @@ const getSolicitudById = async (req, res) => {
 // --- NUEVA API: Obtener todas las solicitudes con estatus 1
 const getSolicitudesPendientesAreaAdministrativa = async (req, res) => {
     try {
+        // Establecer el idioma de la sesión a español
+        await db.query("SET lc_time_names = 'es_ES'");
+
         const sql = `
             SELECT 
                 s.*, 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
                 s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
-                DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_solicitud
+                DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
             LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
@@ -109,22 +112,60 @@ const getSolicitudesPendientesAreaAdministrativa = async (req, res) => {
     }
 };
 
+// solicitudes pendientes por centro salud
+const getSolicitudesPendientesPorCentro = async (req, res) => {
+    try {
+        // Usamos req.params para obtener el ID de la ruta /:centro_salud_id
+        const { centro_salud_id } = req.params;
+
+        if (!centro_salud_id) {
+            return res.status(400).json({ error: "El ID del centro de salud es requerido." });
+        }
+
+        // Establecer el idioma de la sesión a español para el formato de fecha
+        await db.query("SET lc_time_names = 'es_ES'");
+
+        const sql = `
+            SELECT 
+                s.*, 
+                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
+                s.tipo_marca_paso_id, s.observacion_general,
+                es.nombre_estatus AS estatus_nombre,
+                DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
+            FROM registrar_solicitud_pacientes s
+            INNER JOIN pacientes p ON s.paciente_id = p.id
+            LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
+            WHERE s.estatus_solicitud_id IN (1, 4) 
+              AND s.centro_salud_id = ?
+            ORDER BY s.fecha_creacion DESC`;
+
+        const [rows] = await db.query(sql, [centro_salud_id]);
+
+        res.json(rows);
+    } catch (error) {
+        console.error("Error al obtener solicitudes por centro:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
 
 // --- NUEVA API: Obtener todas las solicitudes con estatus 1 y 2 ---
 const getSolicitudesPendientesAreaMedica = async (req, res) => {
     try {
+        // 1. Establecemos el idioma de la sesión a español
+        await db.query("SET lc_time_names = 'es_ES'");
+
         const sql = `
             SELECT 
                 s.*, 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
                 s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
-                DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_solicitud
+                DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
             LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
             WHERE s.estatus_solicitud_id IN (3)
-            ORDER BY s.fecha_creacion DESC`;
+            ORDER BY s.fecha_cita ASC`;
 
         const [rows] = await db.query(sql);
         res.json(rows);
@@ -132,7 +173,6 @@ const getSolicitudesPendientesAreaMedica = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-
 // --- API ADMINISTRATIVA: Solo 1 solicitud ---
 const getSolicitudesAdministrativas = async (req, res) => {
     // 1. Obtenemos el ID del parámetro de la ruta
@@ -147,7 +187,7 @@ const getSolicitudesAdministrativas = async (req, res) => {
                 DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
-            WHERE s.estatus_solicitud_id = 1 
+            WHERE s.estatus_solicitud_id IN (1, 4) 
             AND s.id = ?`; // 2. Filtramos por estatus 2 y el ID específico
 
         // 3. Pasamos el [id] como segundo argumento para reemplazar el '?'
@@ -249,47 +289,148 @@ const deleteSolicitud = async (req, res) => {
     }
 };
 
+const sumarDias = (fecha, dias) => {
+    const res = new Date(fecha);
+    res.setDate(res.getDate() + dias);
+    return res;
+};
+
+const fechaSQL = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
 // --- FINALIZAR PROCESO ADMINISTRATIVO ---
 const finalizarVerificacion = async (req, res) => {
-    const { id } = req.params;
-    const { tipo_operacion_id, estatus_solicitud_id } = req.body;
+    const { id } = req.params; // ID de la solicitud
+    // Agregamos observacion_general a la desestructuración del body
+    const { tipo_operacion_id, estatus_solicitud_id, observacion_general } = req.body;
 
-    // Validación de campos obligatorios
     if (!tipo_operacion_id || !estatus_solicitud_id) {
         return res.status(400).json({
             error: 'El tipo de operación y el estatus de la solicitud son obligatorios.'
         });
     }
 
+    const connection = await db.getConnection();
+
     try {
-        // 1. Verificamos que la solicitud exista antes de actualizar
-        const [rows] = await db.query(
-            'SELECT id FROM registrar_solicitud_pacientes WHERE id = ?',
+        await connection.beginTransaction();
+
+        // 1. Verificamos que la solicitud exista y obtenemos el centro_salud_id para el re-agendamiento
+        const [solicitud] = await connection.query(
+            'SELECT id, paciente_id, centro_salud_id FROM registrar_solicitud_pacientes WHERE id = ?',
             [id]
         );
 
-        if (rows.length === 0) {
+        if (solicitud.length === 0) {
+            await connection.rollback();
             return res.status(404).json({ error: 'Solicitud no encontrada' });
         }
 
-        // 2. Actualizamos con los nuevos valores recibidos del front
-        // Se actualiza el tipo de operación y el estatus (1 para Rechazar, 3 para Operar según tu lógica)
-        await db.query(
-            `UPDATE registrar_solicitud_pacientes 
-             SET estatus_solicitud_id = ?, 
-                 tipo_operacion_id = ? 
-             WHERE id = ?`,
-            [estatus_solicitud_id, tipo_operacion_id, id]
-        );
+        let nuevaFechaCita = null;
+        const centro_salud_id = solicitud[0].centro_salud_id;
+
+        // 2. Lógica de Re-agendar (Value 5)
+        if (parseInt(estatus_solicitud_id) === 5) {
+            // Obtener configuración de cupos filtrado por el centro de salud de la solicitud
+            const [config] = await connection.query(
+                'SELECT * FROM configuracion_dias WHERE centro_salud_id = ?',
+                [centro_salud_id]
+            );
+
+            const cuposPorDia = {};
+            config.forEach(c => cuposPorDia[c.dia_semana] = c.cupos_maximos);
+
+            // Empezamos a buscar desde mañana
+            let fechaCursor = sumarDias(new Date(), 1);
+            let asignado = false;
+            let intentos = 0;
+
+            while (!asignado && intentos < 365) {
+                // Ajuste de día (JS 0-6 -> DB 1-7)
+                let diaSemanaJS = fechaCursor.getDay();
+                let diaSemanaDB = (diaSemanaJS === 0) ? 7 : diaSemanaJS;
+
+                const fechaStr = fechaSQL(fechaCursor);
+                const limite = cuposPorDia[diaSemanaDB] || 0;
+
+                if (limite === 0) {
+                    fechaCursor = sumarDias(fechaCursor, 1);
+                    intentos++;
+                    continue;
+                }
+
+                const [[oficiales], [temporales]] = await Promise.all([
+                    connection.query(
+                        'SELECT COUNT(*) as total FROM registrar_solicitud_pacientes WHERE fecha_cita = ? AND centro_salud_id = ? AND estatus_solicitud_id != 10',
+                        [fechaStr, centro_salud_id]
+                    ),
+                    connection.query(
+                        'SELECT COUNT(*) as total FROM pacientes_cita_temporal WHERE fecha_cita_asignada = ? AND estatus = "en_espera"',
+                        [fechaStr]
+                    )
+                ]);
+
+                const totalOcupado = (oficiales[0]?.total || 0) + (temporales[0]?.total || 0);
+
+                if (totalOcupado < limite) {
+                    nuevaFechaCita = fechaStr;
+                    asignado = true;
+                } else {
+                    fechaCursor = sumarDias(fechaCursor, 1);
+                }
+                intentos++;
+            }
+
+            if (!nuevaFechaCita) {
+                await connection.rollback();
+                return res.status(400).json({ error: 'No se encontró disponibilidad para re-agendar.' });
+            }
+        }
+
+        // 3. Actualizamos la solicitud incluyendo la observación
+        if (nuevaFechaCita) {
+            // Caso: Re-agendar
+            await connection.query(
+                `UPDATE registrar_solicitud_pacientes 
+                 SET estatus_solicitud_id = ?, 
+                     tipo_operacion_id = ?,
+                     fecha_cita = ?,
+                     observacion_general = ?
+                 WHERE id = ?`,
+                [estatus_solicitud_id, tipo_operacion_id, nuevaFechaCita, observacion_general || null, id]
+            );
+        } else {
+            // Caso: Aprobar (2) o Rechazar (3)
+            await connection.query(
+                `UPDATE registrar_solicitud_pacientes 
+                 SET estatus_solicitud_id = ?, 
+                     tipo_operacion_id = ?,
+                     observacion_general = ?
+                 WHERE id = ?`,
+                [estatus_solicitud_id, tipo_operacion_id, observacion_general || null, id]
+            );
+        }
+
+        await connection.commit();
 
         res.json({
-            message: 'Verificación administrativa y decisión finalizada con éxito',
-            estatus_actualizado: estatus_solicitud_id
+            message: nuevaFechaCita
+                ? `Cita re-agendada con éxito para el día ${nuevaFechaCita}`
+                : 'Verificación administrativa finalizada con éxito',
+            estatus_actualizado: estatus_solicitud_id,
+            nueva_fecha: nuevaFechaCita || null
         });
 
     } catch (error) {
+        await connection.rollback();
         console.error("Error en finalizarVerificacion:", error);
         res.status(500).json({ error: error.message });
+    } finally {
+        connection.release();
     }
 };
 
@@ -378,5 +519,6 @@ module.exports = {
     getSolicitudesPendientesAreaMedica,
     getSolicitudesPendientesAreaAdministrativa,
     getSolicitudById,
-    updateTipoOperacionYMarcaPaso
+    updateTipoOperacionYMarcaPaso,
+    getSolicitudesPendientesPorCentro
 };

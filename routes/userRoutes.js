@@ -2,14 +2,17 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
 
-// Rutas públicas
+// Públicas
 router.post('/login', userController.login);
 
-// Rutas CRUD
-router.get('/', userController.getUsers);
-router.post('/register', userController.createUser);
+// CRUD Usuarios
+router.get('/', userController.getUsers);                // Listar
+router.post('/register', userController.createUser);     // Crear
+router.put('/:id', userController.updateUser);           // Editar Info
+router.patch('/:id/password', userController.updatePassword); // Editar Password
+router.delete('/:id', userController.deleteUser);        // Desactivar
 
-// Ruta para obtener roles (lista)
+// Auxiliares
 router.get('/roles', userController.getRoles);
 
 module.exports = router;

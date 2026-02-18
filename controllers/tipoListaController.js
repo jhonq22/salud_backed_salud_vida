@@ -305,6 +305,24 @@ const getPlanDiagnosticoEgreso = async (req, res) => {
 };
 
 
+// 27. Obtener Tipo de Lista
+const getCentrosSalud = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT descripcion as label, id as value FROM lista_centro_salud WHERE estatus = 1 ORDER BY descripcion ASC'
+        );
+
+        res.json(rows);
+    } catch (error) {
+        console.error("Error al obtener centros de salud:", error);
+        res.status(500).json({
+            error: 'Error al obtener la lista de centros de salud',
+            details: error.message
+        });
+    }
+};
+
+
 module.exports = {
     getEstados,
     getMunicipiosByEstado,
@@ -330,5 +348,6 @@ module.exports = {
     getDominancia,
     getListaConclusiones,
     getListaIntervenciones,
-    getPlanDiagnosticoEgreso
+    getPlanDiagnosticoEgreso,
+    getCentrosSalud
 };

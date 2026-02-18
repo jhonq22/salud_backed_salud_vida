@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const login = async (req, res) => {
     const { usuario, password } = req.body;
     try {
-        // 1. Incluimos u.rol_id en el SELECT
+        // Incluimos u.centro_salud_id en el SELECT
         const [rows] = await db.query(
             'SELECT u.*, r.rol FROM users u JOIN roles r ON u.rol_id = r.id WHERE u.usuario = ?',
             [usuario]
@@ -23,9 +23,16 @@ const login = async (req, res) => {
         const [pacienteRows] = await db.query('SELECT id FROM pacientes WHERE paciente_id = ? LIMIT 1', [user.id]);
         const idPaciente = pacienteRows.length > 0 ? pacienteRows[0].id : null;
 
-        // Generar Token (Incluimos rol_id en el payload por si lo necesitas en el middleware de auth)
+        // Generar Token
+        // Agregamos centro_salud_id al payload para que el middleware pueda usarlo si es necesario
         const token = jwt.sign(
-            { id: user.id, rol: user.rol, rol_id: user.rol_id, idPaciente: idPaciente },
+            {
+                id: user.id,
+                rol: user.rol,
+                rol_id: user.rol_id,
+                idPaciente: idPaciente,
+                centro_salud_id: user.centro_salud_id // <--- NUEVO
+            },
             process.env.JWT_SECRET || 'secret_key_123',
             { expiresIn: '8h' }
         );
@@ -39,8 +46,9 @@ const login = async (req, res) => {
                 usuario: user.usuario,
                 nombres: user.nombres,
                 rol: user.rol,
-                rol_id: user.rol_id, // <--- CAMBIO CLAVE: Ahora el frontend sabe que es 2, 3 o 4
-                idPaciente: idPaciente
+                rol_id: user.rol_id,
+                idPaciente: idPaciente,
+                centro_salud_id: user.centro_salud_id // <--- NUEVO
             }
         });
     } catch (error) {
@@ -48,15 +56,19 @@ const login = async (req, res) => {
     }
 };
 
-// 2. CRUD: Crear Usuario (con Hash de password)
+// 2. CRUD: Crear Usuario
 const createUser = async (req, res) => {
-    const { usuario, password, nombres, rol_id } = req.body;
+    // Agregamos centro_salud_id que viene del body
+    const { usuario, password, nombres, rol_id, centro_salud_id } = req.body;
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Insertamos el nuevo campo (puede ser null si el rol no lo requiere)
         const [result] = await db.query(
-            'INSERT INTO users (usuario, password, nombres, rol_id) VALUES (?, ?, ?, ?)',
-            [usuario, hashedPassword, nombres, rol_id]
+            'INSERT INTO users (usuario, password, nombres, rol_id, centro_salud_id) VALUES (?, ?, ?, ?, ?)',
+            [usuario, hashedPassword, nombres, rol_id, centro_salud_id || null]
         );
+
         res.status(201).json({ message: 'Usuario creado', id: result.insertId });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -65,14 +77,59 @@ const createUser = async (req, res) => {
 
 // 3. Obtener Usuarios
 const getUsers = async (req, res) => {
-    const [rows] = await db.query('SELECT u.id, u.usuario, u.nombres, r.rol FROM users u LEFT JOIN roles r ON u.rol_id = r.id');
+    // Incluimos centro_salud_id en la lista para poder verlo en la tabla del admin
+    const [rows] = await db.query(`
+        SELECT u.id, u.usuario, u.nombres, u.centro_salud_id, r.rol, lcs.descripcion as centro_salud_nombre, u.estatus as estatus_usuario 
+        FROM users u 
+        LEFT JOIN roles r ON u.rol_id = r.id
+        LEFT JOIN lista_centro_salud lcs ON u.centro_salud_id = lcs.id
+    `);
     res.json(rows);
 };
 
-// 4. Ver Roles (Solo lectura para consumir la lista)
+// 4. Actualizar Información (Nombre y Rol)
+const updateUser = async (req, res) => {
+    const { id } = req.params;
+    const { nombres, rol_id, centro_salud_id, usuario } = req.body;
+    try {
+        await db.query(
+            'UPDATE users SET nombres = ?, rol_id = ?, centro_salud_id = ?, usuario = ? WHERE id = ?',
+            [nombres, rol_id, centro_salud_id || null, usuario, id]
+        );
+        res.json({ message: 'Usuario actualizado correctamente' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 5. Actualizar solo Contraseña
+const updatePassword = async (req, res) => {
+    const { id } = req.params;
+    const { password } = req.body;
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, id]);
+        res.json({ message: 'Contraseña actualizada con éxito' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 6. Desactivar Usuario (Borrado Lógico)
+const deleteUser = async (req, res) => {
+    const { id } = req.params;
+    try {
+        await db.query('UPDATE users SET estatus = 0 WHERE id = ?', [id]);
+        res.json({ message: 'Usuario desactivado' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 7. Ver Roles
 const getRoles = async (req, res) => {
     const [rows] = await db.query('SELECT * FROM roles WHERE estatus = 1');
     res.json(rows);
 };
 
-module.exports = { login, createUser, getUsers, getRoles };
+module.exports = { login, createUser, getUsers, updateUser, updatePassword, deleteUser, getRoles };
