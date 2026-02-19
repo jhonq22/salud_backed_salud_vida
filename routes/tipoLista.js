@@ -43,7 +43,7 @@ router.get('/lista-intervencion-realizada', tipoListaController.getListaInterven
 // Listas de Egreso Hemodinamia
 router.get('/lista-diagnostico-egreso', tipoListaController.getPlanDiagnosticoEgreso);
 
-// Listas de Centros de Salud
+// Listas de Centros de Salud Nueva
 router.get('/lista-centros-salud', tipoListaController.getCentrosSalud);
 
 module.exports = router;
