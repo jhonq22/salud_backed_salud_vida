@@ -24,6 +24,10 @@ const cateterismoTerapeuticoRoutes = require('./routes/hemodinamia/cateterismoTe
 const egresoHemodinamiaRoutes = require('./routes/hemodinamia/egresoHemodinamiaRoutes');
 const configuracionDiasRoutes = require('./routes/configuracion_citas/configuracionDiasRoutes');
 const crudListaTipoRoutes = require('./routes/crud/CrudListaTipoRoutes');
+const enfermedadAntecedentesRoutes = require('./routes/antecedentes/enfermedadAntecedentesRoutes');
+const antecedentesRoutes = require('./routes/antecedentes/antecedentesRoutes');
+const paraclinicosRoutes = require('./routes/antecedentes/paraclinicosRoutes');
+const examenFisicoRoutes = require('./routes/antecedentes/examenFisicoRoutes');
 
 const app = express();
 
@@ -48,6 +52,10 @@ app.use('/api/cateterismo-terapeutico', cateterismoTerapeuticoRoutes);
 app.use('/api/egreso-hemodinamia', egresoHemodinamiaRoutes);
 app.use('/api/configuracion-dias', configuracionDiasRoutes);
 app.use('/api/crud-lista-tipo', crudListaTipoRoutes);
+app.use('/api/antecedentes-enfermedad-actual', enfermedadAntecedentesRoutes);
+app.use('/api/antecedentes', antecedentesRoutes);
+app.use('/api/paraclinicos', paraclinicosRoutes);
+app.use('/api/examen-fisico', examenFisicoRoutes);
 
 // Ruta base de prueba
 app.get('/', (req, res) => {
