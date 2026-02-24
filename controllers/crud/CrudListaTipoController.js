@@ -7,7 +7,6 @@ const CrudListaTipoController = {
 
     getOperaciones: async (req, res) => {
         try {
-            // Listamos todos para que el front pueda ver quién está activo y quién no si fuera necesario
             const [rows] = await db.query('SELECT * FROM tipo_operaciones ORDER BY tipo_operacion ASC');
             res.json(rows);
         } catch (error) {
@@ -66,7 +65,6 @@ const CrudListaTipoController = {
         if (!descripcion) return res.status(400).json({ error: 'La descripción es obligatoria' });
 
         try {
-            // Verificar duplicados por descripción
             const [existe] = await db.query(
                 'SELECT id FROM lista_centro_salud WHERE descripcion = ? AND id != ? AND estatus = 1',
                 [descripcion, id || 0]
@@ -74,11 +72,9 @@ const CrudListaTipoController = {
             if (existe.length > 0) return res.status(400).json({ error: 'Este centro de salud ya está registrado' });
 
             if (id) {
-                // Actualizar (usamos el estatus que venga del combo del front)
                 await db.query('UPDATE lista_centro_salud SET descripcion = ?, estatus = ? WHERE id = ?', [descripcion, estatus, id]);
                 return res.json({ message: 'Centro de salud actualizado' });
             } else {
-                // Insertar nuevo activo por defecto
                 const [result] = await db.query('INSERT INTO lista_centro_salud (descripcion, estatus) VALUES (?, 1)', [descripcion]);
                 return res.status(201).json({ message: 'Centro de salud creado', id: result.insertId });
             }
@@ -92,6 +88,69 @@ const CrudListaTipoController = {
         try {
             await db.query('UPDATE lista_centro_salud SET estatus = 0 WHERE id = ?', [id]);
             res.json({ message: 'Centro de salud desactivado' });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    // ==========================================
+    // SECCIÓN: ESPECIALIDADES (Nueva)
+    // ==========================================
+
+    getEspecialidades: async (req, res) => {
+        try {
+            // Obtenemos todas las especialidades ordenadas alfabéticamente
+            const [rows] = await db.query('SELECT * FROM especialidades ORDER BY descripcion ASC');
+            res.json(rows);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    saveEspecialidad: async (req, res) => {
+        const { id, descripcion, estatus } = req.body;
+        if (!descripcion) return res.status(400).json({ error: 'La descripción de la especialidad es obligatoria' });
+
+        try {
+            // Evitar duplicados activos
+            const [existe] = await db.query(
+                'SELECT id FROM especialidades WHERE descripcion = ? AND id != ? AND estatus = 1',
+                [descripcion, id || 0]
+            );
+
+            if (existe.length > 0) {
+                return res.status(400).json({ error: 'Esta especialidad ya se encuentra registrada' });
+            }
+
+            if (id) {
+                // Modo Edición
+                await db.query(
+                    'UPDATE especialidades SET descripcion = ?, estatus = ? WHERE id = ?',
+                    [descripcion, estatus, id]
+                );
+                return res.json({ message: 'Especialidad actualizada correctamente' });
+            } else {
+                // Modo Creación
+                const [result] = await db.query(
+                    'INSERT INTO especialidades (descripcion, estatus) VALUES (?, 1)',
+                    [descripcion]
+                );
+                return res.status(201).json({
+                    message: 'Especialidad creada con éxito',
+                    id: result.insertId
+                });
+            }
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    deleteEspecialidad: async (req, res) => {
+        const { id } = req.params;
+        try {
+            // Realizamos un borrado lógico (cambio de estatus)
+            await db.query('UPDATE especialidades SET estatus = 0 WHERE id = ?', [id]);
+            res.json({ message: 'Especialidad desactivada' });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }

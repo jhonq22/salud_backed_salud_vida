@@ -28,6 +28,7 @@ const enfermedadAntecedentesRoutes = require('./routes/antecedentes/enfermedadAn
 const antecedentesRoutes = require('./routes/antecedentes/antecedentesRoutes');
 const paraclinicosRoutes = require('./routes/antecedentes/paraclinicosRoutes');
 const examenFisicoRoutes = require('./routes/antecedentes/examenFisicoRoutes');
+const medicosRoutes = require('./routes/crud/medicosRoutes');
 
 const app = express();
 
@@ -56,6 +57,7 @@ app.use('/api/antecedentes-enfermedad-actual', enfermedadAntecedentesRoutes);
 app.use('/api/antecedentes', antecedentesRoutes);
 app.use('/api/paraclinicos', paraclinicosRoutes);
 app.use('/api/examen-fisico', examenFisicoRoutes);
+app.use('/api/medicos', medicosRoutes);
 
 // Ruta base de prueba
 app.get('/', (req, res) => {

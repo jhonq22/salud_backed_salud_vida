@@ -16,4 +16,19 @@ router.post('/centro-salud', CrudListaTipoController.saveCentro);
 // Desactivar (cambiar estatus a 0)
 router.delete('/centro-salud/:id', CrudListaTipoController.deleteCentro);
 
+
+// ==========================================
+// SECCIÓN: ESPECIALIDADES
+// ==========================================
+
+// Listar todas las especialidades
+router.get('/especialidades', CrudListaTipoController.getEspecialidades);
+
+// Guardar (id: null) o Actualizar (id: valor)
+router.post('/especialidades', CrudListaTipoController.saveEspecialidad);
+
+// Desactivar (cambiar estatus a 0)
+router.delete('/especialidades/:id', CrudListaTipoController.deleteEspecialidad);
+
+
 module.exports = router;
