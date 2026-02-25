@@ -104,4 +104,41 @@ const confirmarCitas = async (req, res) => {
     }
 };
 
-module.exports = { confirmarCitas };
+
+const eliminarTemporales = async (req, res) => {
+    // Obtenemos una conexión del pool
+    const connection = await db.getConnection();
+
+    try {
+        // Ejecutamos la consulta de eliminación
+        const [result] = await connection.query(
+            'DELETE FROM pacientes_cita_temporal WHERE estatus = "en_espera"'
+        );
+
+        // Verificamos si se eliminó algo
+        if (result.affectedRows > 0) {
+            return res.json({
+                status: true,
+                msg: `Se han eliminado ${result.affectedRows} registros en espera correctamente.`
+            });
+        } else {
+            return res.json({
+                status: true,
+                msg: 'No se encontraron registros en espera para eliminar.'
+            });
+        }
+
+    } catch (error) {
+        console.error("Error al eliminar temporales:", error);
+        return res.status(500).json({
+            status: false,
+            msg: 'Hubo un error al intentar limpiar la lista.',
+            error: error.message
+        });
+    } finally {
+        // Importante: Liberar la conexión siempre
+        if (connection) connection.release();
+    }
+};
+
+module.exports = { confirmarCitas, eliminarTemporales };

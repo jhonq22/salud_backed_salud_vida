@@ -9,8 +9,9 @@ const upload = multer({ storage: storage });
 
 
 const { subirExcelTemporal, obtenerPacientesTemporales, obtenerEstadoHospital } = require('../controllers/migrar_citas/MigrarCitasController');
-const { confirmarCitas } = require('../controllers/migrar_citas/confirmacionController');
+const { confirmarCitas, eliminarTemporales } = require('../controllers/migrar_citas/confirmacionController');
 
+router.get('/pacientes-con-solicitudes', solicitudController.PacientesConSolicitudes);
 router.get('/ver-temporales', obtenerPacientesTemporales);
 
 // Rutas de Listado
@@ -41,6 +42,7 @@ router.put('/update-tipo-operacion-y-marca-paso/:id', solicitudController.update
 // Rutas de Migración de Citas
 router.post('/subir-excel-temporal', upload.single('archivo'), subirExcelTemporal);
 router.post('/confirmar-citas', confirmarCitas);
+router.post('/eliminar-temporales', eliminarTemporales);
 router.get('/estado-hospital/:centro_salud_id', obtenerEstadoHospital);
 
 

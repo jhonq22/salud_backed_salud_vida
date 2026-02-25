@@ -23,7 +23,7 @@ const MedicoController = {
                 f.especialidad_id,
                 e.descripcion 
             FROM registro_medicos m
-            LEFT JOIN firmas_medicos f ON m.paciente_id = f.medico_id
+            LEFT JOIN firmas_medicos f ON m.id = f.medico_id
             LEFT JOIN especialidades e ON f.especialidad_id = e.id
             WHERE m.estatus = 1
             ORDER BY m.primerApellido ASC, m.primerNombre ASC
@@ -33,7 +33,7 @@ const MedicoController = {
 
             // Agrupar especialidades por médico
             const medicosAgrupados = rows.reduce((acc, row) => {
-                const medicoExistente = acc.find(m => m.paciente_id === row.paciente_id);
+                const medicoExistente = acc.find(m => m.id === row.id);
 
                 const infoFirma = row.firma_registro_id ? {
                     id: row.firma_registro_id,
@@ -69,7 +69,7 @@ const MedicoController = {
 
     saveMedico: async (req, res) => {
         const {
-            paciente_id, cedula, primerNombre, segundoNombre, primerApellido,
+            id, cedula, primerNombre, segundoNombre, primerApellido,
             segundoApellido, fechaNacimiento, edad, sexo, estadoCivil,
             id_estado, id_municipio, id_parroquia, direccion_actual,
             telefono_celular, telefono_local, correo, estatus
@@ -81,15 +81,15 @@ const MedicoController = {
 
         try {
             const [existe] = await db.query(
-                'SELECT paciente_id FROM registro_medicos WHERE cedula = ? AND paciente_id != ?',
-                [cedula, paciente_id || 0]
+                'SELECT id FROM registro_medicos WHERE cedula = ? AND id != ?',
+                [cedula, id || 0]
             );
 
             if (existe.length > 0) {
                 return res.status(400).json({ error: 'Ya existe un médico registrado con esta cédula' });
             }
 
-            if (paciente_id) {
+            if (id) {
                 const sql = `
                     UPDATE registro_medicos SET 
                         cedula = ?, primerNombre = ?, segundoNombre = ?, primerApellido = ?, 
@@ -97,14 +97,14 @@ const MedicoController = {
                         estadoCivil = ?, id_estado = ?, id_municipio = ?, id_parroquia = ?, 
                         direccion_actual = ?, telefono_celular = ?, telefono_local = ?, 
                         correo = ?, estatus = ?
-                    WHERE paciente_id = ?`;
+                    WHERE id = ?`;
 
                 await db.query(sql, [
                     cedula, primerNombre, segundoNombre, primerApellido,
                     segundoApellido, fechaNacimiento, edad, sexo,
                     estadoCivil, id_estado, id_municipio, id_parroquia,
                     direccion_actual, telefono_celular, telefono_local,
-                    correo, estatus, paciente_id
+                    correo, estatus, id
                 ]);
 
                 return res.json({ message: 'Médico actualizado con éxito' });
@@ -135,7 +135,7 @@ const MedicoController = {
     deleteMedico: async (req, res) => {
         const { id } = req.params;
         try {
-            await db.query('UPDATE registro_medicos SET estatus = 0 WHERE paciente_id = ?', [id]);
+            await db.query('UPDATE registro_medicos SET estatus = 0 WHERE id = ?', [id]);
             res.json({ message: 'Médico desactivado correctamente' });
         } catch (error) {
             res.status(500).json({ error: error.message });

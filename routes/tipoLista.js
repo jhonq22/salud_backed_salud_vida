@@ -46,4 +46,7 @@ router.get('/lista-diagnostico-egreso', tipoListaController.getPlanDiagnosticoEg
 // Listas de Centros de Salud Nueva
 router.get('/lista-centros-salud', tipoListaController.getCentrosSalud);
 
+// Listas de Medicos
+router.get('/lista-medicos', tipoListaController.getMedicos);
+
 module.exports = router;

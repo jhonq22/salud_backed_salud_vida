@@ -323,6 +323,26 @@ const getCentrosSalud = async (req, res) => {
 };
 
 
+// obtener lista de medicos
+const getMedicos = async (req, res) => {
+    try {
+        // Utilizamos CONCAT para unir el nombre y el apellido con un espacio intermedio
+        const sql = `
+            SELECT 
+                CONCAT(primerNombre, ' ', primerApellido) AS label, 
+                id AS value 
+            FROM registro_medicos 
+            WHERE estatus = 1 
+            ORDER BY primerNombre ASC
+        `;
+
+        const [rows] = await db.query(sql);
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 module.exports = {
     getEstados,
     getMunicipiosByEstado,
@@ -349,5 +369,6 @@ module.exports = {
     getListaConclusiones,
     getListaIntervenciones,
     getPlanDiagnosticoEgreso,
-    getCentrosSalud
+    getCentrosSalud,
+    getMedicos
 };

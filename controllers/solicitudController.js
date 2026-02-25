@@ -305,8 +305,15 @@ const fechaSQL = (date) => {
 // --- FINALIZAR PROCESO ADMINISTRATIVO ---
 const finalizarVerificacion = async (req, res) => {
     const { id } = req.params; // ID de la solicitud
-    // Agregamos observacion_general a la desestructuración del body
-    const { tipo_operacion_id, estatus_solicitud_id, observacion_general } = req.body;
+
+    // Agregamos fecha_operacion y medico_id a la desestructuración del body
+    const {
+        tipo_operacion_id,
+        estatus_solicitud_id,
+        observacion_general,
+        fecha_operacion,
+        medico_id
+    } = req.body;
 
     if (!tipo_operacion_id || !estatus_solicitud_id) {
         return res.status(400).json({
@@ -333,8 +340,8 @@ const finalizarVerificacion = async (req, res) => {
         let nuevaFechaCita = null;
         const centro_salud_id = solicitud[0].centro_salud_id;
 
-        // 2. Lógica de Re-agendar (Value 5)
-        if (parseInt(estatus_solicitud_id) === 5) {
+        // 2. Lógica de Re-agendar (Value 5) se púso 100 que no existe para que no entre por ahora
+        if (parseInt(estatus_solicitud_id) === 100) {
             // Obtener configuración de cupos filtrado por el centro de salud de la solicitud
             const [config] = await connection.query(
                 'SELECT * FROM configuracion_dias WHERE centro_salud_id = ?',
@@ -391,7 +398,7 @@ const finalizarVerificacion = async (req, res) => {
             }
         }
 
-        // 3. Actualizamos la solicitud incluyendo la observación
+        // 3. Actualizamos la solicitud incluyendo la observación y los nuevos campos
         if (nuevaFechaCita) {
             // Caso: Re-agendar
             await connection.query(
@@ -399,19 +406,38 @@ const finalizarVerificacion = async (req, res) => {
                  SET estatus_solicitud_id = ?, 
                      tipo_operacion_id = ?,
                      fecha_cita = ?,
-                     observacion_general = ?
+                     observacion_general = ?,
+                     fecha_operacion = ?,
+                     medico_id = ?
                  WHERE id = ?`,
-                [estatus_solicitud_id, tipo_operacion_id, nuevaFechaCita, observacion_general || null, id]
+                [
+                    estatus_solicitud_id,
+                    tipo_operacion_id,
+                    nuevaFechaCita,
+                    observacion_general || null,
+                    fecha_operacion || null,
+                    medico_id || null,
+                    id
+                ]
             );
         } else {
-            // Caso: Aprobar (2) o Rechazar (3)
+            // Caso: Aprobar (2) o Rechazar (3/4)
             await connection.query(
                 `UPDATE registrar_solicitud_pacientes 
                  SET estatus_solicitud_id = ?, 
                      tipo_operacion_id = ?,
-                     observacion_general = ?
+                     observacion_general = ?,
+                     fecha_operacion = ?,
+                     medico_id = ?
                  WHERE id = ?`,
-                [estatus_solicitud_id, tipo_operacion_id, observacion_general || null, id]
+                [
+                    estatus_solicitud_id,
+                    tipo_operacion_id,
+                    observacion_general || null,
+                    fecha_operacion || null,
+                    medico_id || null,
+                    id
+                ]
             );
         }
 
@@ -430,7 +456,7 @@ const finalizarVerificacion = async (req, res) => {
         console.error("Error en finalizarVerificacion:", error);
         res.status(500).json({ error: error.message });
     } finally {
-        connection.release();
+        if (connection) connection.release();
     }
 };
 
@@ -502,6 +528,36 @@ const updateTipoOperacionYMarcaPaso = async (req, res) => {
 
 
 
+const PacientesConSolicitudes = async (req, res) => {
+    try {
+        const sql = `
+            SELECT 
+                p.primer_nombre, p.primer_apellido, p.cedula, p.edad, p.codificacion_buen_gobierno, p.correo, p.telefono_celular, 
+                p.telefono_local,
+                s.tipo_marca_paso_id,
+                es.nombre_estatus AS estatus_nombre,
+                cs.descripcion AS centro_salud_nombre
+            FROM registrar_solicitud_pacientes s
+            LEFT JOIN pacientes p ON s.paciente_id = p.id
+            LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
+            LEFT JOIN lista_centro_salud cs ON s.centro_salud_id = cs.id
+            ORDER BY s.fecha_creacion DESC
+        `;
+
+        // Ejecutamos la consulta sin pasarle parámetros
+        const [rows] = await db.query(sql);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'No se encontraron solicitudes registradas' });
+        }
+
+        // Retornamos el array completo con todos los registros
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 
 
 module.exports = {
@@ -520,5 +576,6 @@ module.exports = {
     getSolicitudesPendientesAreaAdministrativa,
     getSolicitudById,
     updateTipoOperacionYMarcaPaso,
-    getSolicitudesPendientesPorCentro
+    getSolicitudesPendientesPorCentro,
+    PacientesConSolicitudes
 };
