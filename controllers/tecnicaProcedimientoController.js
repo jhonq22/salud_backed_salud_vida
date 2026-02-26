@@ -4,12 +4,12 @@ const db = require('../config/db');
 const createTecnica = async (req, res) => {
     const {
         solicitud_paciente_id,
-        localizacion,           // <-- Nuevo campo
+        localizacion,
         general_id,
         via_acceso_id,
-        otro_via_acesso,        // <-- Nuevo campo corregido (otro_via_acesso)
+        otro_via_acesso,
         bolsillo_mcp_id,
-        colocacion_electrodos_id,
+        colocacion_electrodos_id, // Este ahora llega como un Array []
         lugar_estimulacion_id,
         otros_lugar_estimulacion,
         tamano_septum
@@ -20,6 +20,13 @@ const createTecnica = async (req, res) => {
     }
 
     try {
+        // --- CAMBIO CLAVE ---
+        // Convertimos el array a string JSON antes de enviarlo a la base de datos
+        // Si por alguna razón llega nulo o indefinido, guardamos null
+        const colocacionElectrodosJson = colocacion_electrodos_id
+            ? JSON.stringify(colocacion_electrodos_id)
+            : null;
+
         // 1. Verificar si ya existe el registro
         const [exist] = await db.query(
             'SELECT id FROM tecnica_procedimiento_implantado WHERE solicitud_paciente_id = ?',
@@ -42,7 +49,9 @@ const createTecnica = async (req, res) => {
                 WHERE solicitud_paciente_id = ?`,
                 [
                     localizacion, general_id, via_acceso_id, otro_via_acesso,
-                    bolsillo_mcp_id, colocacion_electrodos_id, lugar_estimulacion_id,
+                    bolsillo_mcp_id,
+                    colocacionElectrodosJson, // Usamos la variable convertida
+                    lugar_estimulacion_id,
                     otros_lugar_estimulacion, tamano_septum, solicitud_paciente_id
                 ]
             );
@@ -60,7 +69,9 @@ const createTecnica = async (req, res) => {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     solicitud_paciente_id, localizacion, general_id, via_acceso_id, otro_via_acesso,
-                    bolsillo_mcp_id, colocacion_electrodos_id, lugar_estimulacion_id,
+                    bolsillo_mcp_id,
+                    colocacionElectrodosJson, // Usamos la variable convertida
+                    lugar_estimulacion_id,
                     otros_lugar_estimulacion, tamano_septum
                 ]
             );

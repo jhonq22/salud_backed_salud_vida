@@ -22,20 +22,67 @@ const lista_catalogo_paraclinicos = async (req, res) => {
 
 // --- BLOQUE ECG ---
 const saveECG = async (req, res) => {
-    const { solicitud_paciente_id, ritmo_id, frecuencia_cardiaca, intervalo_pr, duracion_qrs, intervalo_qt, eje_qrs, crecimiento_cavidades, segmento_st_id, q_patologica, derivacion_afectada_id, bloqueo_rama_id, bav_id, suc_bav_id, arritmias_id, f_qrs, f_p, descripcion_hallazgos } = req.body;
+    const {
+        solicitud_paciente_id, ritmo_id, frecuencia_cardiaca, intervalo_pr,
+        duracion_qrs, intervalo_qt, eje_qrs, crecimiento_cavidades,
+        segmento_st_id, q_patologica, derivacion_afectada_id, bloqueo_rama_id,
+        bav_id, suc_bav_id, arritmias_id, f_qrs, f_p, descripcion_hallazgos,
+        // NUEVOS 6 CAMPOS
+        bav_dos_mobitz_uno, bav_dos_mobitz_dos, bav_conduccion_dos_uno,
+        bav_conduccion_tres_uno, bav_conduccion_cuatro_uno, bav_conduccion_otros
+    } = req.body;
+
     try {
         const [exist] = await db.query('SELECT id FROM paciente_paraclinico_ecg WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
         const cavidadesJson = crecimiento_cavidades ? JSON.stringify(crecimiento_cavidades) : null;
 
         if (exist.length > 0) {
-            await db.query(`UPDATE paciente_paraclinico_ecg SET ritmo_id=?, frecuencia_cardiaca=?, intervalo_pr=?, duracion_qrs=?, intervalo_qt=?, eje_qrs=?, crecimiento_cavidades=?, segmento_st_id=?, q_patologica=?, derivacion_afectada_id=?, bloqueo_rama_id=?, bav_id=?, suc_bav_id=?, arritmias_id=?, f_qrs=?, f_p=?, descripcion_hallazgos=? WHERE solicitud_paciente_id=?`,
-                [ritmo_id, frecuencia_cardiaca, intervalo_pr, duracion_qrs, intervalo_qt, eje_qrs, cavidadesJson, segmento_st_id, q_patologica, derivacion_afectada_id, bloqueo_rama_id, bav_id, suc_bav_id, arritmias_id, f_qrs, f_p, descripcion_hallazgos, solicitud_paciente_id]);
+            await db.query(
+                `UPDATE paciente_paraclinico_ecg SET 
+                    ritmo_id=?, frecuencia_cardiaca=?, intervalo_pr=?, duracion_qrs=?, 
+                    intervalo_qt=?, eje_qrs=?, crecimiento_cavidades=?, segmento_st_id=?, 
+                    q_patologica=?, derivacion_afectada_id=?, bloqueo_rama_id=?, bav_id=?, 
+                    suc_bav_id=?, arritmias_id=?, f_qrs=?, f_p=?, descripcion_hallazgos=?,
+                    bav_dos_mobitz_uno=?, bav_dos_mobitz_dos=?, bav_conduccion_dos_uno=?,
+                    bav_conduccion_tres_uno=?, bav_conduccion_cuatro_uno=?, bav_conduccion_otros=?
+                WHERE solicitud_paciente_id=?`,
+                [
+                    ritmo_id, frecuencia_cardiaca, intervalo_pr, duracion_qrs,
+                    intervalo_qt, eje_qrs, cavidadesJson, segmento_st_id,
+                    q_patologica, derivacion_afectada_id, bloqueo_rama_id, bav_id,
+                    suc_bav_id, arritmias_id, f_qrs, f_p, descripcion_hallazgos,
+                    bav_dos_mobitz_uno, bav_dos_mobitz_dos, bav_conduccion_dos_uno,
+                    bav_conduccion_tres_uno, bav_conduccion_cuatro_uno, bav_conduccion_otros,
+                    solicitud_paciente_id
+                ]
+            );
             return res.json({ message: 'ECG actualizado' });
         }
-        await db.query(`INSERT INTO paciente_paraclinico_ecg (solicitud_paciente_id, ritmo_id, frecuencia_cardiaca, intervalo_pr, duracion_qrs, intervalo_qt, eje_qrs, crecimiento_cavidades, segmento_st_id, q_patologica, derivacion_afectada_id, bloqueo_rama_id, bav_id, suc_bav_id, arritmias_id, f_qrs, f_p, descripcion_hallazgos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-            [solicitud_paciente_id, ritmo_id, frecuencia_cardiaca, intervalo_pr, duracion_qrs, intervalo_qt, eje_qrs, cavidadesJson, segmento_st_id, q_patologica, derivacion_afectada_id, bloqueo_rama_id, bav_id, suc_bav_id, arritmias_id, f_qrs, f_p, descripcion_hallazgos]);
+
+        await db.query(
+            `INSERT INTO paciente_paraclinico_ecg 
+            (
+                solicitud_paciente_id, ritmo_id, frecuencia_cardiaca, intervalo_pr, 
+                duracion_qrs, intervalo_qt, eje_qrs, crecimiento_cavidades, 
+                segmento_st_id, q_patologica, derivacion_afectada_id, bloqueo_rama_id, 
+                bav_id, suc_bav_id, arritmias_id, f_qrs, f_p, descripcion_hallazgos,
+                bav_dos_mobitz_uno, bav_dos_mobitz_dos, bav_conduccion_dos_uno,
+                bav_conduccion_tres_uno, bav_conduccion_cuatro_uno, bav_conduccion_otros
+            ) 
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+                solicitud_paciente_id, ritmo_id, frecuencia_cardiaca, intervalo_pr,
+                duracion_qrs, intervalo_qt, eje_qrs, cavidadesJson,
+                segmento_st_id, q_patologica, derivacion_afectada_id, bloqueo_rama_id,
+                bav_id, suc_bav_id, arritmias_id, f_qrs, f_p, descripcion_hallazgos,
+                bav_dos_mobitz_uno, bav_dos_mobitz_dos, bav_conduccion_dos_uno,
+                bav_conduccion_tres_uno, bav_conduccion_cuatro_uno, bav_conduccion_otros
+            ]
+        );
         res.status(201).json({ message: 'ECG registrado' });
-    } catch (error) { res.status(500).json({ error: error.message }); }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };
 
 const getECG = async (req, res) => {
@@ -47,18 +94,56 @@ const getECG = async (req, res) => {
 
 // --- BLOQUE ECO ---
 const saveECO = async (req, res) => {
-    const { solicitud_paciente_id, fevi_simpson, fevi_z_score, ddvi, ddvi_z_score, ddvd, evaluacion_valvular_id, evaluacion_sub_valvular_id, vcsip, fop } = req.body;
+    const {
+        solicitud_paciente_id, fevi_simpson, fevi_z_score, ddvi,
+        ddvi_z_score, ddvd, evaluacion_valvular_id, evaluacion_sub_valvular_id,
+        vcsip, fop,
+        valvula_vao_id, valvula_vm_id, valvula_vp_id, valvula_vt_id
+    } = req.body;
+
     try {
         const [exist] = await db.query('SELECT id FROM paciente_paraclinico_eco WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+
+        // Convertimos el array a JSON (si existe), de lo contrario lo dejamos nulo
+        const evaluacionValvularJson = evaluacion_valvular_id ? JSON.stringify(evaluacion_valvular_id) : null;
+
         if (exist.length > 0) {
-            await db.query(`UPDATE paciente_paraclinico_eco SET fevi_simpson=?, fevi_z_score=?, ddvi=?, ddvi_z_score=?, ddvd=?, evaluacion_valvular_id=?, evaluacion_sub_valvular_id=?, vcsip=?, fop=? WHERE solicitud_paciente_id=?`,
-                [fevi_simpson, fevi_z_score, ddvi, ddvi_z_score, ddvd, evaluacion_valvular_id, evaluacion_sub_valvular_id, vcsip, fop, solicitud_paciente_id]);
+            await db.query(
+                `UPDATE paciente_paraclinico_eco SET 
+                    fevi_simpson=?, fevi_z_score=?, ddvi=?, ddvi_z_score=?, ddvd=?, 
+                    evaluacion_valvular_id=?, evaluacion_sub_valvular_id=?, vcsip=?, fop=?,
+                    valvula_vao_id=?, valvula_vm_id=?, valvula_vp_id=?, valvula_vt_id=? 
+                WHERE solicitud_paciente_id=?`,
+                [
+                    fevi_simpson, fevi_z_score, ddvi, ddvi_z_score, ddvd,
+                    evaluacionValvularJson, // Aquí pasamos la variable convertida a JSON
+                    evaluacion_sub_valvular_id, vcsip, fop,
+                    valvula_vao_id, valvula_vm_id, valvula_vp_id, valvula_vt_id,
+                    solicitud_paciente_id
+                ]
+            );
             return res.json({ message: 'ECO actualizado' });
         }
-        await db.query(`INSERT INTO paciente_paraclinico_eco (solicitud_paciente_id, fevi_simpson, fevi_z_score, ddvi, ddvi_z_score, ddvd, evaluacion_valvular_id, evaluacion_sub_valvular_id, vcsip, fop) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-            [solicitud_paciente_id, fevi_simpson, fevi_z_score, ddvi, ddvi_z_score, ddvd, evaluacion_valvular_id, evaluacion_sub_valvular_id, vcsip, fop]);
+
+        await db.query(
+            `INSERT INTO paciente_paraclinico_eco 
+            (
+                solicitud_paciente_id, fevi_simpson, fevi_z_score, ddvi, ddvi_z_score, ddvd, 
+                evaluacion_valvular_id, evaluacion_sub_valvular_id, vcsip, fop,
+                valvula_vao_id, valvula_vm_id, valvula_vp_id, valvula_vt_id
+            ) 
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+                solicitud_paciente_id, fevi_simpson, fevi_z_score, ddvi, ddvi_z_score, ddvd,
+                evaluacionValvularJson, // Aquí pasamos la variable convertida a JSON
+                evaluacion_sub_valvular_id, vcsip, fop,
+                valvula_vao_id, valvula_vm_id, valvula_vp_id, valvula_vt_id
+            ]
+        );
         res.status(201).json({ message: 'ECO registrado' });
-    } catch (error) { res.status(500).json({ error: error.message }); }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };
 
 const getECO = async (req, res) => {

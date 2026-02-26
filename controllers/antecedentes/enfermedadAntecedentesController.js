@@ -12,7 +12,6 @@ const lista_catologo_enfermedad = async (req, res) => {
     }
 
     try {
-        // Consultamos y mapeamos directamente en el SELECT para optimizar
         const [rows] = await db.query(
             `SELECT 
                 nombre AS label, 
@@ -58,7 +57,12 @@ const saveEnfermedadActual = async (req, res) => {
         clase_funcional_id,
         ross,
         nyha,
-        otra_sintomatologia
+        otra_sintomatologia,
+        // NUEVOS CAMPOS
+        retraso_pondoestatural,
+        retraso_pondoestatural_mayor_p3,
+        retraso_pondoestatural_mayor_p10,
+        retraso_pondoestatural_menor_p10
     } = req.body;
 
     if (!solicitud_paciente_id) {
@@ -84,6 +88,8 @@ const saveEnfermedadActual = async (req, res) => {
                     concamitante_id = ?, frecuencia_sincope_id = ?, aparicion_id = ?, 
                     frecuencia_pre_sincope_id = ?, clase_funcional_id = ?, 
                     ross = ?, nyha = ?, otra_sintomatologia = ?,
+                    retraso_pondoestatural = ?, retraso_pondoestatural_mayor_p3 = ?, 
+                    retraso_pondoestatural_mayor_p10 = ?, retraso_pondoestatural_menor_p10 = ?,
                     fecha_modificacion = CURRENT_TIMESTAMP
                 WHERE solicitud_paciente_id = ?`;
 
@@ -96,6 +102,8 @@ const saveEnfermedadActual = async (req, res) => {
                 concamitante_id, frecuencia_sincope_id, aparicion_id,
                 frecuencia_pre_sincope_id, clase_funcional_id,
                 ross, nyha, otra_sintomatologia,
+                retraso_pondoestatural, retraso_pondoestatural_mayor_p3,
+                retraso_pondoestatural_mayor_p10, retraso_pondoestatural_menor_p10,
                 solicitud_paciente_id
             ];
 
@@ -113,9 +121,11 @@ const saveEnfermedadActual = async (req, res) => {
                     riesgos_id, inicio_id, duracion, fin_id, 
                     concamitante_id, frecuencia_sincope_id, aparicion_id, 
                     frecuencia_pre_sincope_id, clase_funcional_id, 
-                    ross, nyha, otra_sintomatologia
+                    ross, nyha, otra_sintomatologia,
+                    retraso_pondoestatural, retraso_pondoestatural_mayor_p3,
+                    retraso_pondoestatural_mayor_p10, retraso_pondoestatural_menor_p10
                 ) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
             const insertValues = [
                 solicitud_paciente_id, ultimo_peso_kg, ultimo_peso_fecha, peso_actual_kg,
@@ -125,7 +135,9 @@ const saveEnfermedadActual = async (req, res) => {
                 riesgos_id, inicio_id, duracion, fin_id,
                 concamitante_id, frecuencia_sincope_id, aparicion_id,
                 frecuencia_pre_sincope_id, clase_funcional_id,
-                ross, nyha, otra_sintomatologia
+                ross, nyha, otra_sintomatologia,
+                retraso_pondoestatural, retraso_pondoestatural_mayor_p3,
+                retraso_pondoestatural_mayor_p10, retraso_pondoestatural_menor_p10
             ];
 
             await db.query(insertSql, insertValues);
@@ -160,5 +172,5 @@ const getEnfermedadBySolicitud = async (req, res) => {
 module.exports = {
     saveEnfermedadActual,
     getEnfermedadBySolicitud,
-    lista_catologo_enfermedad // Exportamos la nueva función
+    lista_catologo_enfermedad
 };

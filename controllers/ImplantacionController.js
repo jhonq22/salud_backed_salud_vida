@@ -5,15 +5,15 @@ const ImplantacionController = {
     async saveGenerador(req, res) {
         try {
             const { solicitud_paciente_id, marca_id, modelo_id, serial } = req.body;
-            const [exist] = await db.query('SELECT id FROM Generador_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+            const [exist] = await db.query('SELECT id FROM generador_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
 
             if (exist.length > 0) {
-                await db.query('UPDATE Generador_implantado SET marca_id = ?, modelo_id = ?, serial = ? WHERE solicitud_paciente_id = ?',
+                await db.query('UPDATE generador_implantado SET marca_id = ?, modelo_id = ?, serial = ? WHERE solicitud_paciente_id = ?',
                     [marca_id, modelo_id, serial, solicitud_paciente_id]);
                 return res.json({ message: "Generador actualizado" });
             }
 
-            await db.query('INSERT INTO Generador_implantado (solicitud_paciente_id, marca_id, modelo_id, serial) VALUES (?, ?, ?, ?)',
+            await db.query('INSERT INTO generador_implantado (solicitud_paciente_id, marca_id, modelo_id, serial) VALUES (?, ?, ?, ?)',
                 [solicitud_paciente_id, marca_id, modelo_id, serial]);
             res.status(201).json({ message: "Generador guardado" });
         } catch (e) { res.status(500).json({ error: e.message }); }
@@ -147,19 +147,32 @@ const ImplantacionController = {
     // --- 6. PARÁMETROS PROGRAMACIÓN VENTRICULAR ---
     async saveParametrosProgVent(req, res) {
         try {
-            const { solicitud_paciente_id, amplitud_r, fc_minima } = req.body;
-            const [exist] = await db.query('SELECT id FROM parametro_programacion_ventricular_implantado WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+            const { solicitud_paciente_id, amplitud_r, fc_minima, voltios, tiempos } = req.body;
+
+            const [exist] = await db.query(
+                'SELECT id FROM parametro_programacion_ventricular_implantado WHERE solicitud_paciente_id = ?',
+                [solicitud_paciente_id]
+            );
 
             if (exist.length > 0) {
-                await db.query('UPDATE parametro_programacion_ventricular_implantado SET amplitud_r = ?, fc_minima = ? WHERE solicitud_paciente_id = ?',
-                    [amplitud_r, fc_minima, solicitud_paciente_id]);
+                // Actualización de registros existentes
+                await db.query(
+                    'UPDATE parametro_programacion_ventricular_implantado SET amplitud_r = ?, fc_minima = ?, voltios = ?, tiempos = ? WHERE solicitud_paciente_id = ?',
+                    [amplitud_r, fc_minima, voltios, tiempos, solicitud_paciente_id]
+                );
                 return res.json({ message: "Programación ventricular actualizada" });
             }
 
-            await db.query('INSERT INTO parametro_programacion_ventricular_implantado (solicitud_paciente_id, amplitud_r, fc_minima) VALUES (?, ?, ?)',
-                [solicitud_paciente_id, amplitud_r, fc_minima]);
+            // Inserción de nuevo registro
+            await db.query(
+                'INSERT INTO parametro_programacion_ventricular_implantado (solicitud_paciente_id, amplitud_r, fc_minima, voltios, tiempos) VALUES (?, ?, ?, ?, ?)',
+                [solicitud_paciente_id, amplitud_r, fc_minima, voltios, tiempos]
+            );
+
             res.status(201).json({ message: "Programación ventricular guardada" });
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
     },
 
     // --- 7. PARÁMETROS MEDIDOS AURICULAR ---

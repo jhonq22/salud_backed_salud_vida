@@ -527,14 +527,20 @@ const updateTipoOperacionYMarcaPaso = async (req, res) => {
 };
 
 
-
 const PacientesConSolicitudes = async (req, res) => {
     try {
         const sql = `
             SELECT 
-                p.primer_nombre, p.primer_apellido, p.cedula, p.edad, p.codificacion_buen_gobierno, p.correo, p.telefono_celular, 
+                p.primer_nombre, 
+                p.primer_apellido, 
+                p.cedula, 
+                p.edad, 
+                p.codificacion_buen_gobierno, 
+                p.correo, 
+                p.telefono_celular, 
                 p.telefono_local,
-                s.tipo_marca_paso_id,
+                s.tipo_marca_paso_id, 
+                DATE_FORMAT(s.fecha_cita, '%d/%m/%y') AS fecha_cita, -- Formato DD/MM/YY
                 es.nombre_estatus AS estatus_nombre,
                 cs.descripcion AS centro_salud_nombre
             FROM registrar_solicitud_pacientes s
@@ -544,14 +550,14 @@ const PacientesConSolicitudes = async (req, res) => {
             ORDER BY s.fecha_creacion DESC
         `;
 
-        // Ejecutamos la consulta sin pasarle parámetros
+        // Ejecutamos la consulta
         const [rows] = await db.query(sql);
 
         if (rows.length === 0) {
             return res.status(404).json({ message: 'No se encontraron solicitudes registradas' });
         }
 
-        // Retornamos el array completo con todos los registros
+        // Retornamos el array completo
         res.json(rows);
     } catch (error) {
         res.status(500).json({ error: error.message });
