@@ -29,6 +29,7 @@ const antecedentesRoutes = require('./routes/antecedentes/antecedentesRoutes');
 const paraclinicosRoutes = require('./routes/antecedentes/paraclinicosRoutes');
 const examenFisicoRoutes = require('./routes/antecedentes/examenFisicoRoutes');
 const medicosRoutes = require('./routes/crud/medicosRoutes');
+const reportesRoutes = require('./routes/reportes/reportesRoutes');
 
 const app = express();
 
@@ -58,7 +59,7 @@ app.use('/api/antecedentes', antecedentesRoutes);
 app.use('/api/paraclinicos', paraclinicosRoutes);
 app.use('/api/examen-fisico', examenFisicoRoutes);
 app.use('/api/medicos', medicosRoutes);
-
+app.use('/api/reportes', reportesRoutes);
 // Ruta base de prueba
 app.get('/', (req, res) => {
     res.send('API REST Salud funcionando correctamente');

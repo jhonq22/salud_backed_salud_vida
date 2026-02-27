@@ -17,10 +17,8 @@ const fechaSQL = (date) => {
     return `${y}-${m}-${d}`;
 };
 
-// Función para convertir fechas de Excel (números) a formato SQL
 const formatExcelDate = (excelDate) => {
     if (!excelDate) return null;
-    // Si ya es un string con formato fecha, lo devolvemos limpio
     if (typeof excelDate === 'string') return excelDate.split('/').reverse().join('-');
     const date = new Date((excelDate - (25567 + 1)) * 86400 * 1000);
     return fechaSQL(date);
@@ -56,40 +54,67 @@ const subirExcelTemporal = async (req, res) => {
 
         if (datosRaw.length === 0) return res.status(200).json({ msg: 'El Excel está vacío.' });
 
+        // --- 1. VALIDACIÓN DE DUPLICADOS DENTRO DEL MISMO EXCEL ---
+        const cedulasEnExcel = new Set();
+        const codigosEnExcel = new Set();
+
+        for (const fila of datosRaw) {
+            const cedula = fila['CEDULA'];
+            const codigo = fila['CODIGO 1X10'];
+
+            if (cedula && cedulasEnExcel.has(cedula)) {
+                return res.status(400).json({ msg: `Error: El archivo Excel contiene la Cédula duplicada: ${cedula}` });
+            }
+            if (codigo && codigosEnExcel.has(codigo)) {
+                return res.status(400).json({ msg: `Error: El archivo Excel contiene el Código 1x10 duplicado: ${codigo}` });
+            }
+
+            if (cedula) cedulasEnExcel.add(cedula);
+            if (codigo) codigosEnExcel.add(codigo);
+        }
+
+        // --- 2. VALIDACIÓN CONTRA LA BASE DE DATOS (EN ESPERA) ---
+        const listaCedulas = Array.from(cedulasEnExcel);
+        const listaCodigos = Array.from(codigosEnExcel);
+
+        if (listaCedulas.length > 0) {
+            const [duplicadosBD] = await db.query(
+                `SELECT cedula, codificacion_buen_gobierno 
+                 FROM pacientes_cita_temporal 
+                 WHERE estatus = 'en_espera' 
+                 AND (cedula IN (?) OR codificacion_buen_gobierno IN (?))`,
+                [listaCedulas, listaCodigos.length > 0 ? listaCodigos : ['']]
+            );
+
+            if (duplicadosBD.length > 0) {
+                const item = duplicadosBD[0];
+                const esCedula = listaCedulas.includes(item.cedula);
+                const desc = esCedula ? `Cédula ${item.cedula}` : `Código 1x10 ${item.codificacion_buen_gobierno}`;
+                return res.status(400).json({ msg: `Carga cancelada. Ya existe un registro en espera con: ${desc}` });
+            }
+        }
+
+        // --- 3. PROCESO DE ASIGNACIÓN DE CITAS ---
         const [config] = await db.query(
             'SELECT dia_semana, cupos_maximos FROM configuracion_dias WHERE centro_salud_id = ?',
             [centro_salud_id]
         );
-        if (config.length === 0) return res.status(400).json({ msg: 'El hospital no tiene cupos.' });
+        if (config.length === 0) return res.status(400).json({ msg: 'El hospital no tiene configuración de cupos.' });
 
         const cuposPorDia = {};
         config.forEach(c => cuposPorDia[c.dia_semana] = c.cupos_maximos);
 
-        // --- VALIDACIÓN DE DUPLICADOS ---
-        const cedulasExcel = datosRaw.map(f => f['CEDULA']).filter(Boolean);
-        if (cedulasExcel.length > 0) {
-            const [duplicados] = await db.query(
-                "SELECT cedula FROM pacientes_cita_temporal WHERE estatus = 'en_espera' AND cedula IN (?)",
-                [cedulasExcel]
-            );
-            if (duplicados.length > 0) {
-                return res.status(400).json({ msg: `Carga cancelada. Cédula duplicada en espera: ${duplicados[0].cedula}` });
-            }
-        }
-
         const [control] = await db.query('SELECT * FROM control_asignacion_citas WHERE centro_salud_id = ?', [centro_salud_id]);
-        let fechaActualStr = '';
-        const ultimaAsignada = control.length > 0 ? control[0].ultima_fecha_asignada : null;
+        let fechaActualStr = fecha_inicio || (control.length > 0 && control[0].ultima_fecha_asignada
+            ? fechaSQL(new Date(control[0].ultima_fecha_asignada))
+            : fechaSQL(new Date()));
 
         if (fecha_inicio) {
-            fechaActualStr = fecha_inicio;
             await db.query(
                 `INSERT INTO control_asignacion_citas (centro_salud_id, fecha_inicio_reparto) 
                  VALUES (?, ?) ON DUPLICATE KEY UPDATE fecha_inicio_reparto = ?, ultima_fecha_asignada = NULL`,
                 [centro_salud_id, fecha_inicio, fecha_inicio]
             );
-        } else {
-            fechaActualStr = ultimaAsignada ? fechaSQL(new Date(ultimaAsignada)) : fechaSQL(new Date());
         }
 
         let fechaCursor = new Date(`${fechaActualStr}T00:00:00`);
@@ -130,11 +155,11 @@ const subirExcelTemporal = async (req, res) => {
                         fila['PRIMER APELLIDO'],
                         fila['SEGUNDO APELLIDO'] || null,
                         fila['TELEFONO 1'] || null,
-                        fila['TELEFONO 2'] || null, // Nueva columna
+                        fila['TELEFONO 2'] || null,
                         fila['CORREO ELECTRONICO'] || null,
-                        formatExcelDate(fila['FECHA NACIMIENTO']), // Nueva columna formateada
+                        formatExcelDate(fila['FECHA NACIMIENTO']),
                         fechaStr,
-                        fila['ESTADO'] + ", " + fila['MUNICIPIO'] // Direccion combinada
+                        (fila['ESTADO'] || '') + ", " + (fila['MUNICIPIO'] || '')
                     ]);
                     cuposDisponiblesHoy--;
                     asignado = true;
@@ -156,10 +181,10 @@ const subirExcelTemporal = async (req, res) => {
             await db.query('UPDATE control_asignacion_citas SET ultima_fecha_asignada = ? WHERE centro_salud_id = ?', [fechaSQL(fechaCursor), centro_salud_id]);
         }
 
-        res.json({ msg: 'Proceso terminado', cantidad: pacientesParaInsertar.length, ultima_fecha: fechaSQL(fechaCursor) });
+        res.json({ msg: 'Proceso terminado con éxito', cantidad: pacientesParaInsertar.length, ultima_fecha: fechaSQL(fechaCursor) });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ msg: 'Error interno' });
+        res.status(500).json({ msg: 'Error interno del servidor' });
     }
 };
 

@@ -148,6 +148,50 @@ const getSolicitudesPendientesPorCentro = async (req, res) => {
     }
 };
 
+
+
+
+
+
+
+// estatus solicitud dinamicos
+const getSolicitudesEstatusDinamico = async (req, res) => {
+    try {
+        // 1. Obtenemos el id del estatus desde los parámetros de la URL
+        const { id } = req.params;
+
+        if (!id) {
+            return res.status(400).json({ error: "El ID de estatus es obligatorio." });
+        }
+
+        // 2. Establecemos el idioma de la sesión a español para el formato de fecha
+        await db.query("SET lc_time_names = 'es_ES'");
+
+        const sql = `
+            SELECT 
+                s.*, 
+                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
+                s.tipo_marca_paso_id,
+                es.nombre_estatus AS estatus_nombre,
+                DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
+            FROM registrar_solicitud_pacientes s
+            INNER JOIN pacientes p ON s.paciente_id = p.id
+            LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
+            WHERE s.estatus_solicitud_id = ?
+            ORDER BY s.fecha_cita ASC`;
+
+        // 3. Pasamos el id como parámetro a la consulta para evitar inyecciones SQL
+        const [rows] = await db.query(sql, [id]);
+
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+
+
+
 // --- NUEVA API: Obtener todas las solicitudes con estatus 1 y 2 ---
 const getSolicitudesPendientesAreaMedica = async (req, res) => {
     try {
@@ -164,7 +208,7 @@ const getSolicitudesPendientesAreaMedica = async (req, res) => {
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
             LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
-            WHERE s.estatus_solicitud_id IN (3)
+            WHERE s.estatus_solicitud_id IN (3, 5)
             ORDER BY s.fecha_cita ASC`;
 
         const [rows] = await db.query(sql);
@@ -583,5 +627,6 @@ module.exports = {
     getSolicitudById,
     updateTipoOperacionYMarcaPaso,
     getSolicitudesPendientesPorCentro,
-    PacientesConSolicitudes
+    PacientesConSolicitudes,
+    getSolicitudesEstatusDinamico
 };

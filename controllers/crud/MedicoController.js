@@ -72,7 +72,7 @@ const MedicoController = {
             id, cedula, primerNombre, segundoNombre, primerApellido,
             segundoApellido, fechaNacimiento, edad, sexo, estadoCivil,
             id_estado, id_municipio, id_parroquia, direccion_actual,
-            telefono_celular, telefono_local, correo, estatus
+            telefono_celular, telefono_local, correo, estatus, mpps // <-- Agregado mpps aquí
         } = req.body;
 
         if (!cedula || !primerNombre || !primerApellido) {
@@ -90,13 +90,14 @@ const MedicoController = {
             }
 
             if (id) {
+                // Update - Agregado mpps en el SET
                 const sql = `
                     UPDATE registro_medicos SET 
                         cedula = ?, primerNombre = ?, segundoNombre = ?, primerApellido = ?, 
                         segundoApellido = ?, fechaNacimiento = ?, edad = ?, sexo = ?, 
                         estadoCivil = ?, id_estado = ?, id_municipio = ?, id_parroquia = ?, 
                         direccion_actual = ?, telefono_celular = ?, telefono_local = ?, 
-                        correo = ?, estatus = ?
+                        correo = ?, estatus = ?, mpps = ? 
                     WHERE id = ?`;
 
                 await db.query(sql, [
@@ -104,25 +105,26 @@ const MedicoController = {
                     segundoApellido, fechaNacimiento, edad, sexo,
                     estadoCivil, id_estado, id_municipio, id_parroquia,
                     direccion_actual, telefono_celular, telefono_local,
-                    correo, estatus, id
+                    correo, estatus, mpps, id // <-- Agregado mpps en el array de valores
                 ]);
 
                 return res.json({ message: 'Médico actualizado con éxito' });
             } else {
+                // Insert - Agregado mpps en los campos y el array de valores
                 const sql = `
                     INSERT INTO registro_medicos (
                         cedula, primerNombre, segundoNombre, primerApellido, 
                         segundoApellido, fechaNacimiento, edad, sexo, 
                         estadoCivil, id_estado, id_municipio, id_parroquia, 
                         direccion_actual, telefono_celular, telefono_local, 
-                        correo, estatus
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`;
+                        correo, estatus, mpps
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`; // <-- Agregado el signo de interrogación al final
 
                 const [result] = await db.query(sql, [
                     cedula, primerNombre, segundoNombre, primerApellido,
                     segundoApellido, fechaNacimiento, edad, sexo,
                     estadoCivil, id_estado, id_municipio, id_parroquia,
-                    direccion_actual, telefono_celular, telefono_local, correo
+                    direccion_actual, telefono_celular, telefono_local, correo, mpps // <-- Agregado mpps
                 ]);
 
                 return res.status(201).json({ message: 'Médico creado con éxito', id: result.insertId });
