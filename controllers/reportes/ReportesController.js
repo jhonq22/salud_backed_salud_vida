@@ -19,13 +19,51 @@ const ReportesController = {
             // 1. ENFERMEDAD ACTUAL (Monitoreo de peso y datos generales)
             const [enfActualResult] = await db.query(`
                 SELECT 
-                    ultimo_peso_kg AS peso_anterior,
-                    ultimo_peso_fecha AS fecha_anterior,
-                    peso_actual_kg AS peso_actual,
-                    (peso_actual_kg - ultimo_peso_kg) AS diferencia,
-                    sintomas, duracion, ross, nyha, otra_sintomatologia, retraso_pondoestatural
-                FROM paciente_enfermedad_actual 
-                WHERE solicitud_paciente_id = ? LIMIT 1
+                    pea.ultimo_peso_kg AS peso_anterior,
+                    pea.ultimo_peso_fecha AS fecha_anterior,
+                    pea.peso_actual_kg AS peso_actual,
+                    (pea.peso_actual_kg - pea.ultimo_peso_kg) AS diferencia,
+                    pea.sintomas, 
+                    pea.duracion, 
+                    pea.ross, 
+                    pea.nyha, 
+                    pea.otra_sintomatologia, 
+                    pea.retraso_pondoestatural,
+                    pea.portador_cardiopatia_estructural,
+                    -- Nombres de catálogos
+                    c_inicio_sint.nombre AS inicio_sintomatologia_nombre,
+                    c_tipo_portador.nombre AS tipo_portador_nombre,
+                    c_en_condicion.nombre AS en_condicion_nombre,
+                    c_ic.nombre AS ic_nombre,
+                    c_origen_t.nombre AS origen_torasico_nombre,
+                    c_presentacion.nombre AS presentacion_nombre,
+                    c_riesgos.nombre AS riesgos_nombre,
+                    c_inicio.nombre AS inicio_nombre,
+                    c_fin.nombre AS fin_nombre,
+                    c_concomitante.nombre AS concomitante_nombre,
+                    c_frec_sincope.nombre AS frecuencia_sincope_nombre,
+                    c_aparicion.nombre AS aparicion_nombre,
+                    c_frec_pre.nombre AS frecuencia_pre_sincope_nombre,
+                    c_clase_funcional.nombre AS clase_funcional_nombre
+                FROM paciente_enfermedad_actual pea
+                -- CORRECCIÓN: inicio_sintomologia_id (sin la 'a')
+                LEFT JOIN enfermedad_actual_catalogos c_inicio_sint ON pea.inicio_sintomalogia_id = c_inicio_sint.id
+                LEFT JOIN enfermedad_actual_catalogos c_tipo_portador ON pea.tipo_portador_id = c_tipo_portador.id
+                -- CORRECCIÓN: en_condiccion_id (con doble 'c' según tu imagen)
+                LEFT JOIN enfermedad_actual_catalogos c_en_condicion ON pea.en_condiccion_id = c_en_condicion.id
+                LEFT JOIN enfermedad_actual_catalogos c_ic ON pea.ic_id = c_ic.id
+                LEFT JOIN enfermedad_actual_catalogos c_origen_t ON pea.origen_torasico_id = c_origen_t.id
+                LEFT JOIN enfermedad_actual_catalogos c_presentacion ON pea.presentacion_id = c_presentacion.id
+                LEFT JOIN enfermedad_actual_catalogos c_riesgos ON pea.riesgos_id = c_riesgos.id
+                LEFT JOIN enfermedad_actual_catalogos c_inicio ON pea.inicio_id = c_inicio.id
+                LEFT JOIN enfermedad_actual_catalogos c_fin ON pea.fin_id = c_fin.id
+                -- CORRECCIÓN: concamitante_id (con 'a' en lugar de 'o')
+                LEFT JOIN enfermedad_actual_catalogos c_concomitante ON pea.concamitante_id = c_concomitante.id
+                LEFT JOIN enfermedad_actual_catalogos c_frec_sincope ON pea.frecuencia_sincope_id = c_frec_sincope.id
+                LEFT JOIN enfermedad_actual_catalogos c_aparicion ON pea.aparicion_id = c_aparicion.id
+                LEFT JOIN enfermedad_actual_catalogos c_frec_pre ON pea.frecuencia_pre_sincope_id = c_frec_pre.id
+                LEFT JOIN enfermedad_actual_catalogos c_clase_funcional ON pea.clase_funcional_id = c_clase_funcional.id
+                WHERE pea.solicitud_paciente_id = ? LIMIT 1
             `, [solicitud_id]);
 
             // 2. SIGNOS VITALES

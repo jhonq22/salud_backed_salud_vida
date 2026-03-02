@@ -37,6 +37,32 @@ const confirmarCitas = async (req, res) => {
         let procesados = 0;
 
         for (const temp of temporales) {
+            // ==========================================
+            // NUEVA VALIDACIÓN: Evitar solicitudes duplicadas
+            // ==========================================
+            // Nos aseguramos de manejar nulos en la codificación para no tener falsos positivos
+            const codGobierno = temp.codificacion_buen_gobierno || '';
+
+            const [solicitudActiva] = await connection.query(
+                `SELECT rsp.id 
+                 FROM registrar_solicitud_pacientes rsp
+                 INNER JOIN pacientes p ON rsp.paciente_id = p.id
+                 WHERE (p.cedula = ? OR (p.codificacion_buen_gobierno = ? AND p.codificacion_buen_gobierno != ''))
+                   AND (rsp.estatus = 1 AND rsp.estatus_solicitud_id != 6)
+                 LIMIT 1`,
+                [temp.cedula, codGobierno]
+            );
+
+            // Si encuentra una solicitud en true (1) y que no sea 6, bloquea y pinta error
+            if (solicitudActiva.length > 0) {
+                await connection.rollback();
+                return res.status(400).json({
+                    status: true,
+                    msg: `La cédula ${temp.cedula} o código ya tiene una solicitud asignada y no puede registrar otra hasta que la finalice.`
+                });
+            }
+            // ==========================================
+
             let pacienteId = null;
             const edadCalculada = calcularEdad(temp.fecha_nacimiento);
 
@@ -103,7 +129,6 @@ const confirmarCitas = async (req, res) => {
         if (connection) connection.release();
     }
 };
-
 
 const eliminarTemporales = async (req, res) => {
     // Obtenemos una conexión del pool
