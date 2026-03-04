@@ -3,22 +3,41 @@ const db = require('../config/db');
 const ComplicacionesImplantadasController = {
 
     // --- COMPLICACIONES INMEDIATAS ---
-    saveComplicaciones: async (req, res) => {
-        const { solicitud_paciente_id, ...data } = req.body;
-        try {
-            const [exist] = await db.query('SELECT id FROM complicaciones_inmediatas WHERE solicitud_paciente_id = ?', [solicitud_paciente_id]);
+saveComplicaciones: async (req, res) => {
+    const { solicitud_paciente_id, ...data } = req.body;
 
-            if (exist.length > 0) {
-                await db.query('UPDATE complicaciones_inmediatas SET ? WHERE solicitud_paciente_id = ?', [data, solicitud_paciente_id]);
-                res.json({ message: "Complicaciones actualizadas" });
-            } else {
-                await db.query('INSERT INTO complicaciones_inmediatas SET ?', { ...data, solicitud_paciente_id });
-                res.json({ message: "Complicaciones guardadas" });
-            }
-        } catch (error) {
-            res.status(500).json({ message: "Error en complicaciones", error });
+    // VALIDACIÓN: Si el ID es falso, nulo o 0, detener la ejecución
+    if (!solicitud_paciente_id || solicitud_paciente_id === "false") {
+        return res.status(400).json({ 
+            message: "El ID de la solicitud es requerido y debe ser un número válido." 
+        });
+    }
+
+    try {
+        const [exist] = await db.query(
+            'SELECT id FROM complicaciones_inmediatas WHERE solicitud_paciente_id = ?', 
+            [solicitud_paciente_id]
+        );
+
+        if (exist.length > 0) {
+            await db.query(
+                'UPDATE complicaciones_inmediatas SET ? WHERE solicitud_paciente_id = ?', 
+                [data, solicitud_paciente_id]
+            );
+            res.json({ message: "Complicaciones actualizadas" });
+        } else {
+            // Asegúrate de incluir el ID en el INSERT
+            await db.query(
+                'INSERT INTO complicaciones_inmediatas SET ?', 
+                { ...data, solicitud_paciente_id }
+            );
+            res.json({ message: "Complicaciones guardadas" });
         }
-    },
+    } catch (error) {
+        console.error(error); // Siempre es bueno ver el error real en la consola del servidor
+        res.status(500).json({ message: "Error en complicaciones", error });
+    }
+},
 
     getComplicaciones: async (req, res) => {
         try {
