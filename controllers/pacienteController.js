@@ -70,47 +70,34 @@ const createPaciente = async (req, res) => {
 // 4. Actualizar un paciente
 const updatePaciente = async (req, res) => {
     const { id } = req.params;
-    const {
-        cedula, es_cedulado, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-        sexo, fecha_nacimiento, estado_civil, estado_id, municipio_id, parroquia_id,
-        telefono_local, telefono_celular, correo, estatus,
-        // Nuevos campos
-        edad, pais_id, lugar_nacimiento, nivel_estudio_id, direccion_actual,
-        institucion_referencia, otra_institucion, religion, etnia_indigena_id,
-        bilingue, telefono_emergencia, correo_secundario, instagram, facebook,
-        twitter, otras_redes, codificacion_buen_gobierno,
-        // Campo agregado
-        paciente_id
-    } = req.body;
+    const camposAActualizar = req.body;
+
+    // 1. Validar que no venga vacío
+    if (Object.keys(camposAActualizar).length === 0) {
+        return res.status(400).json({ message: 'No hay campos para actualizar' });
+    }
 
     try {
-        const sql = `
-            UPDATE pacientes SET 
-            cedula=?, es_cedulado=?, primer_nombre=?, segundo_nombre=?, primer_apellido=?, segundo_apellido=?, 
-            sexo=?, fecha_nacimiento=?, estado_civil=?, estado_id=?, municipio_id=?, parroquia_id=?,
-            telefono_local=?, telefono_celular=?, correo=?, estatus=?,
-            edad=?, pais_id=?, lugar_nacimiento=?, nivel_estudio_id=?, direccion_actual=?,
-            institucion_referencia=?, otra_institucion=?, religion=?, etnia_indigena_id=?,
-            bilingue=?, telefono_emergencia=?, correo_secundario=?, instagram=?, facebook=?,
-            twitter=?, otras_redes=?, codificacion_buen_gobierno=?, paciente_id=?
-            WHERE id = ?
-        `;
+        // 2. Construir la cadena de SET dinámicamente
+        // Ejemplo: "primer_nombre=?, sexo=?, estado_id=?"
+        const keys = Object.keys(camposAActualizar);
+        const setString = keys.map(key => `${key}=?`).join(', ');
 
-        const values = [
-            cedula, es_cedulado, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-            sexo, fecha_nacimiento, estado_civil, estado_id, municipio_id, parroquia_id,
-            telefono_local, telefono_celular, correo, estatus,
-            edad, pais_id, lugar_nacimiento, nivel_estudio_id, direccion_actual,
-            institucion_referencia, otra_institucion, religion, etnia_indigena_id,
-            bilingue, telefono_emergencia, correo_secundario, instagram, facebook,
-            twitter, otras_redes, codificacion_buen_gobierno, paciente_id || null, id
-        ];
+        // 3. Preparar los valores en el mismo orden
+        const values = Object.values(camposAActualizar);
+        values.push(id); // El ID para el WHERE al final
+
+        const sql = `UPDATE pacientes SET ${setString} WHERE id = ?`;
 
         const [result] = await db.query(sql, values);
-        if (result.affectedRows === 0) return res.status(404).json({ message: 'Paciente no encontrado' });
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Paciente no encontrado' });
+        }
+
         res.json({ message: 'Paciente actualizado exitosamente' });
     } catch (error) {
-        res.status(500).json({ message: 'Error al actualizar paciente', error: error.message });
+        res.status(500).json({ message: 'Error al actualizar', error: error.message });
     }
 };
 
