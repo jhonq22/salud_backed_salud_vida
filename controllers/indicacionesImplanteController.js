@@ -1,7 +1,7 @@
 const db = require('../config/db');
 
 const indicacionesController = {
-    // Crear registro
+    // Crear o Actualizar registro
     create: async (req, res) => {
         try {
             const data = req.body;
@@ -24,6 +24,7 @@ const indicacionesController = {
                     relacionado_frecuencia_cardiaca_id = ?, relacionado_trastornos_conduccion_id = ?, 
                     relacionado_trastornos_funcionales_id = ?, relacionado_trastornos_otros_id = ?, 
                     hb = ?, gb = ?, plaquetas = ?, creatinina = ?, urea = ?, 
+                    diagnostico = ?, pt = ?, ppt = ?, glicemia = ?,
                     audit_usu_id = ?, audit_ip = ?, audit_dep_id = ? 
                     WHERE id = ?`;
 
@@ -31,6 +32,7 @@ const indicacionesController = {
                     data.relacionado_frecuencia_cardiaca_id, data.relacionado_trastornos_conduccion_id,
                     data.relacionado_trastornos_funcionales_id, data.relacionado_trastornos_otros_id,
                     data.hb, data.gb, data.plaquetas, data.creatinina, data.urea,
+                    data.diagnostico, data.pt, data.ppt, data.glicemia, // Nuevos campos
                     data.audit_usu_id, data.audit_ip, data.audit_dep_id, recordId
                 ];
 
@@ -42,14 +44,16 @@ const indicacionesController = {
                 const insertQuery = `INSERT INTO indicaciones_implante_nuevos 
                     (solicitud_paciente_id, relacionado_frecuencia_cardiaca_id, relacionado_trastornos_conduccion_id, 
                     relacionado_trastornos_funcionales_id, relacionado_trastornos_otros_id, hb, gb, plaquetas, 
-                    creatinina, urea, audit_usu_id, audit_ip, audit_dep_id) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                    creatinina, urea, diagnostico, pt, ppt, glicemia, audit_usu_id, audit_ip, audit_dep_id) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
                 const insertValues = [
                     data.solicitud_paciente_id, data.relacionado_frecuencia_cardiaca_id,
                     data.relacionado_trastornos_conduccion_id, data.relacionado_trastornos_funcionales_id,
                     data.relacionado_trastornos_otros_id, data.hb, data.gb, data.plaquetas,
-                    data.creatinina, data.urea, data.audit_usu_id, data.audit_ip, data.audit_dep_id
+                    data.creatinina, data.urea, 
+                    data.diagnostico, data.pt, data.ppt, data.glicemia, // Nuevos campos
+                    data.audit_usu_id, data.audit_ip, data.audit_dep_id
                 ];
 
                 const [result] = await db.query(insertQuery, insertValues);
@@ -84,7 +88,7 @@ const indicacionesController = {
         }
     },
 
-    // Actualizar
+    // Actualizar (Método independiente si se requiere por ID de registro)
     update: async (req, res) => {
         try {
             const { id } = req.params;
@@ -93,9 +97,18 @@ const indicacionesController = {
                 relacionado_frecuencia_cardiaca_id = ?, relacionado_trastornos_conduccion_id = ?, 
                 relacionado_trastornos_funcionales_id = ?, relacionado_trastornos_otros_id = ?, 
                 hb = ?, gb = ?, plaquetas = ?, creatinina = ?, urea = ?, 
+                diagnostico = ?, pt = ?, ppt = ?, glicemia = ?,
                 audit_usu_id = ?, audit_ip = ? WHERE id = ?`;
 
-            await db.query(query, [...Object.values(data), id]);
+            const values = [
+                data.relacionado_frecuencia_cardiaca_id, data.relacionado_trastornos_conduccion_id,
+                data.relacionado_trastornos_funcionales_id, data.relacionado_trastornos_otros_id,
+                data.hb, data.gb, data.plaquetas, data.creatinina, data.urea,
+                data.diagnostico, data.pt, data.ppt, data.glicemia,
+                data.audit_usu_id, data.audit_ip, id
+            ];
+
+            await db.query(query, values);
             res.json({ message: 'Registro actualizado' });
         } catch (error) {
             res.status(500).json({ error: error.message });
