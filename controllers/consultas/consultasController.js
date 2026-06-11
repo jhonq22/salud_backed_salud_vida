@@ -328,7 +328,7 @@ const lista_por_tipo = async (req, res) => {
                 puntaje 
              FROM catalogo_consultas 
              WHERE tipo = ? AND estatus = 1
-             ORDER BY nombre ASC`,
+             ORDER BY CASE WHEN UPPER(nombre) = 'NINGUNA' THEN 0 ELSE 1 END, nombre ASC`,
             [tipo]
         );
 

@@ -521,12 +521,18 @@ reporteCaterismo: async (req, res) => {
                     p.edad, 
                     p.fecha_nacimiento, 
                     p.sexo AS genero,
-                    p.telefono_celular, /* <-- AQUÍ AGREGAMOS EL TELÉFONO */
+                    p.telefono_celular,
                     s.medico_id,
-                    TRIM(REPLACE(CONCAT_WS(' ', m.primerNombre, m.segundoNombre, m.primerApellido, m.segundoApellido), '  ', ' ')) AS nombre_medico
+                    s.ayudante_medico_uno_id,
+                    s.ayudante_medico_dos_id,
+                    TRIM(REPLACE(CONCAT_WS(' ', m.primerNombre, m.segundoNombre, m.primerApellido, m.segundoApellido), '  ', ' ')) AS nombre_medico,
+                    TRIM(REPLACE(CONCAT_WS(' ', ay1.primerNombre, ay1.segundoNombre, ay1.primerApellido, ay1.segundoApellido), '  ', ' ')) AS nombre_ayudante_uno,
+                    TRIM(REPLACE(CONCAT_WS(' ', ay2.primerNombre, ay2.segundoNombre, ay2.primerApellido, ay2.segundoApellido), '  ', ' ')) AS nombre_ayudante_dos
                 FROM registrar_solicitud_pacientes s
                 INNER JOIN pacientes p ON s.paciente_id = p.id
                 LEFT JOIN registro_medicos m ON s.medico_id = m.id
+                LEFT JOIN registro_medicos ay1 ON s.ayudante_medico_uno_id = ay1.id
+                LEFT JOIN registro_medicos ay2 ON s.ayudante_medico_dos_id = ay2.id
                 WHERE s.id = ? LIMIT 1
             `, [solicitud_id]);
 
@@ -589,11 +595,13 @@ reporteCaterismo: async (req, res) => {
             // 4. CONSTRUCCIÓN DEL JSON FINAL ESTRUCTURADO
             const reporte_cateterismo_completo = {
                 medico_asignado: pacienteData.nombre_medico || 'No asignado', 
+                ayudante_medico_uno_nombre: pacienteData.nombre_ayudante_uno || '',
+                ayudante_medico_dos_nombre: pacienteData.nombre_ayudante_dos || '',
                 paciente: {
                     edad: pacienteData.edad,
                     fecha_nacimiento: pacienteData.fecha_nacimiento,
                     genero: pacienteData.genero,
-                    telefono_celular: pacienteData.telefono_celular /* <-- AQUÍ LO INYECTAMOS AL JSON */
+                    telefono_celular: pacienteData.telefono_celular 
                 },
                 cateterismo: cateterismoMaster ? {
                     ...cateterismoMaster,

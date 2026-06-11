@@ -567,7 +567,9 @@ const finalizarVerificacion = async (req, res) => {
         observacion_general,
         fecha_operacion,
         medico_id,
-        tipo_marca_paso_id // nuevo campo
+        tipo_marca_paso_id, // nuevo campo
+        ayudante_medico_uno_id,
+        ayudante_medico_dos_id
     } = req.body;
 
     const camposActualizar = [];
@@ -582,6 +584,10 @@ const finalizarVerificacion = async (req, res) => {
 
     // Nueva línea para el marcapasos
     if (tipo_marca_paso_id !== undefined) { camposActualizar.push('tipo_marca_paso_id = ?'); valores.push(tipo_marca_paso_id); }
+
+    // Nuevas líneas para ayudantes médicos
+    if (ayudante_medico_uno_id !== undefined) { camposActualizar.push('ayudante_medico_uno_id = ?'); valores.push(ayudante_medico_uno_id); }
+    if (ayudante_medico_dos_id !== undefined) { camposActualizar.push('ayudante_medico_dos_id = ?'); valores.push(ayudante_medico_dos_id); }
 
     if (camposActualizar.length === 0) {
         return res.status(400).json({

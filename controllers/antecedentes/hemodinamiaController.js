@@ -18,7 +18,7 @@ const lista_por_tipo = async (req, res) => {
                 id AS value 
              FROM catalogo_hemodinamia 
              WHERE tipo = ? AND estatus = 1
-             ORDER BY nombre ASC`,
+             ORDER BY CASE WHEN UPPER(nombre) = 'NINGUNA' THEN 0 ELSE 1 END, nombre ASC`,
             [tipo]
         );
 
@@ -38,8 +38,8 @@ const lista_por_padre = async (req, res) => {
     try {
         // Si el padre_id viene como string "null", lo tratamos como NULL de SQL
         const query = padre_id === 'null' || !padre_id 
-            ? 'SELECT nombre AS label, id AS value FROM catalogo_hemodinamia WHERE padre_id IS NULL AND estatus = 1 ORDER BY nombre ASC'
-            : 'SELECT nombre AS label, id AS value FROM catalogo_hemodinamia WHERE padre_id = ? AND estatus = 1 ORDER BY nombre ASC';
+            ? `SELECT nombre AS label, id AS value FROM catalogo_hemodinamia WHERE padre_id IS NULL AND estatus = 1 ORDER BY CASE WHEN UPPER(nombre) = 'NINGUNA' THEN 0 ELSE 1 END, nombre ASC`
+            : `SELECT nombre AS label, id AS value FROM catalogo_hemodinamia WHERE padre_id = ? AND estatus = 1 ORDER BY CASE WHEN UPPER(nombre) = 'NINGUNA' THEN 0 ELSE 1 END, nombre ASC`;
         
         const params = padre_id === 'null' || !padre_id ? [] : [padre_id];
 
