@@ -103,10 +103,10 @@ const confirmarCitas = async (req, res) => {
             // LÓGICA DE TIPO DE OPERACIÓN Y MARCAPASO
             // ==========================================
             const tipoOp = temp.tipo_operacion ? temp.tipo_operacion.toUpperCase().trim() : '';
-            
-            let valorMarcapaso = 0; 
+
+            let valorMarcapaso = 0;
             let tipoOperacionId = 1; // Valor por defecto en caso de que no coincida con ninguno
-            
+
             if (tipoOp === 'MARCAPASO') {
                 valorMarcapaso = 1;
                 tipoOperacionId = 1;
@@ -145,32 +145,49 @@ const confirmarCitas = async (req, res) => {
 };
 
 const eliminarTemporales = async (req, res) => {
-    // 1. Obtenemos el parámetro de la URL
     const { centro_salud_id } = req.params;
 
-    // Validación básica para asegurar que el ID existe
     if (!centro_salud_id) {
-        return res.status(400).json({
-            status: false,
-            msg: 'Es necesario el ID del centro de salud.'
-        });
+        return res.status(400).json({ status: false, msg: 'Es necesario el ID del centro de salud.' });
     }
 
     const connection = await db.getConnection();
 
     try {
-        // 2. Ejecutamos la consulta filtrando por estatus Y por el hospital específico
+        await connection.beginTransaction(); // Usamos transacción por seguridad
+
         const [result] = await connection.query(
             'DELETE FROM pacientes_cita_temporal WHERE estatus = "en_espera" AND centro_salud_id = ?',
             [centro_salud_id]
         );
 
         if (result.affectedRows > 0) {
+            // ==========================================
+            // NUEVO: Sincronizar el puntero de fechas
+            // ==========================================
+            // 1. Buscamos la última fecha real de los que sí fueron procesados
+            const [ultimaReal] = await connection.query(
+                'SELECT MAX(fecha_cita_asignada) as max_fecha FROM pacientes_cita_temporal WHERE estatus = "procesado" AND centro_salud_id = ?',
+                [centro_salud_id]
+            );
+
+            // Si no hay procesados previos, la dejamos en NULL para que arranque desde la fecha_inicio_reparto
+            const fechaSincronizada = ultimaReal[0].max_fecha || null;
+
+            // 2. Actualizamos la tabla de control para retroceder el cursor
+            await connection.query(
+                'UPDATE control_asignacion_citas SET ultima_fecha_asignada = ? WHERE centro_salud_id = ?',
+                [fechaSincronizada, centro_salud_id]
+            );
+
+            await connection.commit();
+
             return res.json({
                 status: true,
-                msg: `Se han eliminado ${result.affectedRows} registros en espera para este hospital.`
+                msg: `Se han eliminado ${result.affectedRows} registros en espera y sincronizado el calendario.`
             });
         } else {
+            await connection.commit();
             return res.json({
                 status: true,
                 msg: 'No se encontraron registros en espera para este hospital.'
@@ -178,6 +195,7 @@ const eliminarTemporales = async (req, res) => {
         }
 
     } catch (error) {
+        if (connection) await connection.rollback();
         console.error("Error al eliminar temporales:", error);
         return res.status(500).json({
             status: false,
@@ -189,33 +207,68 @@ const eliminarTemporales = async (req, res) => {
     }
 };
 
+
+
 const eliminarTemporalPorId = async (req, res) => {
-    // Obtenemos el ID de los parámetros de la ruta
     const { id } = req.params;
     const connection = await db.getConnection();
 
     try {
-        // Ejecutamos la consulta filtrando por el ID
-        const [result] = await connection.query(
-            'DELETE FROM pacientes_cita_temporal WHERE id = ?',
+        // Iniciamos una transacción para asegurar que todo ocurra o nada ocurra
+        await connection.beginTransaction();
+
+        // 1. Obtener el centro_salud_id antes de eliminar el registro
+        const [paciente] = await connection.query(
+            'SELECT centro_salud_id FROM pacientes_cita_temporal WHERE id = ?',
             [id]
         );
 
-        // Verificamos si las filas afectadas son mayores a 0
-        if (result.affectedRows > 0) {
-            return res.json({
-                status: true,
-                msg: `El registro con ID ${id} ha sido eliminado correctamente.`
-            });
-        } else {
-            // Si el ID no existe o ya fue eliminado
+        // Si el ID no existe
+        if (paciente.length === 0) {
+            await connection.rollback();
             return res.status(404).json({
                 status: false,
                 msg: 'No se encontró el registro especificado para eliminar.'
             });
         }
 
+        const centro_salud_id = paciente[0].centro_salud_id;
+
+        // 2. Ejecutamos la eliminación del paciente individual
+        await connection.query(
+            'DELETE FROM pacientes_cita_temporal WHERE id = ?',
+            [id]
+        );
+
+        // 3. Sincronizar el puntero de fechas para este hospital específico
+        // Buscamos la fecha máxima de los pacientes que quedan (tanto en_espera como procesados)
+        const [ultimaReal] = await connection.query(
+            `SELECT MAX(fecha_cita_asignada) as max_fecha 
+             FROM pacientes_cita_temporal 
+             WHERE centro_salud_id = ?`,
+            [centro_salud_id]
+        );
+
+        // Si ya no quedan más pacientes en la tabla para ese hospital, se vuelve NULL
+        const fechaSincronizada = ultimaReal[0].max_fecha || null;
+
+        // 4. Actualizamos la tabla de control con el nuevo límite real
+        await connection.query(
+            'UPDATE control_asignacion_citas SET ultima_fecha_asignada = ? WHERE centro_salud_id = ?',
+            [fechaSincronizada, centro_salud_id]
+        );
+
+        // Confirmamos todos los cambios en la base de datos
+        await connection.commit();
+
+        return res.json({
+            status: true,
+            msg: `El registro con ID ${id} ha sido eliminado y el calendario del hospital fue sincronizado correctamente.`
+        });
+
     } catch (error) {
+        // Si algo falla, revertimos cualquier cambio para evitar corrupción de datos
+        if (connection) await connection.rollback();
         console.error("Error al eliminar el registro temporal:", error);
         return res.status(500).json({
             status: false,
