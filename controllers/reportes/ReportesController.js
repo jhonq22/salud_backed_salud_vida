@@ -907,22 +907,155 @@ getReporteGeneral: async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
+},
+
+getIndicadoresReportes: async (req, res) => {
+    try {
+        const { fecha_inicio, fecha_final, centro_salud_id } = req.query;
+
+        let filterConsultas = " WHERE 1=1";
+        let filterSolicitudes = " WHERE 1=1";
+        let paramsConsultas = [];
+        let paramsSolicitudes = [];
+
+        if (fecha_inicio && fecha_inicio !== 'null' && fecha_inicio !== '') {
+            filterConsultas += " AND DATE(cm.fecha_consulta) >= ?";
+            paramsConsultas.push(fecha_inicio);
+
+            filterSolicitudes += " AND DATE(rsp.fecha_creacion) >= ?";
+            paramsSolicitudes.push(fecha_inicio);
+        }
+
+        if (fecha_final && fecha_final !== 'null' && fecha_final !== '') {
+            filterConsultas += " AND DATE(cm.fecha_consulta) <= ?";
+            paramsConsultas.push(fecha_final);
+
+            filterSolicitudes += " AND DATE(rsp.fecha_creacion) <= ?";
+            paramsSolicitudes.push(fecha_final);
+        }
+
+        if (centro_salud_id && centro_salud_id !== 'null' && centro_salud_id !== '') {
+            filterConsultas += " AND rsp.centro_salud_id = ?";
+            paramsConsultas.push(centro_salud_id);
+
+            filterSolicitudes += " AND rsp.centro_salud_id = ?";
+            paramsSolicitudes.push(centro_salud_id);
+        }
+
+        // 1er Reporte: Total Pacientes Atendidos (Independent counts)
+        const queryConsultas = `
+            SELECT COUNT(DISTINCT cm.id) AS total_consultas
+            FROM consultas_medicas cm
+            LEFT JOIN registrar_solicitud_pacientes rsp ON cm.paciente_id = rsp.paciente_id
+            ${filterConsultas}
+        `;
+
+        const querySolicitudes = `
+            SELECT COUNT(DISTINCT rsp.id) AS total_solicitudes
+            FROM registrar_solicitud_pacientes rsp
+            ${filterSolicitudes}
+        `;
+
+        // 2do Reporte: Cantidad de Cateterismos Diagnósticos Realizados
+        const queryDiag = `
+            SELECT COUNT(DISTINCT rsp.id) AS total
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN cateterismo_diagnostico_hemodinamia cdh ON rsp.id = cdh.solicitud_paciente_id
+            ${filterSolicitudes}
+        `;
+
+        // 3er Reporte: Cantidad de Cateterismos Terapéuticos Realizados
+        const queryTerap = `
+            SELECT COUNT(DISTINCT rsp.id) AS total
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN cateterismo_terapeutico_hemodinamia cth ON rsp.id = cth.solicitud_paciente_id
+            ${filterSolicitudes}
+        `;
+
+        // 4to Reporte: Total de Solicitudes por tipo (Marcapasos Endocárdico, Hemodinamia, Marcapasos Epicárdico)
+        const queryProc = `
+            SELECT 
+                tp.tipo_operacion AS etiqueta, 
+                COUNT(rsp.id) AS total
+            FROM tipo_operaciones tp
+            LEFT JOIN registrar_solicitud_pacientes rsp ON tp.id = rsp.tipo_operacion_id 
+                ${filterSolicitudes.replace('WHERE', 'AND')}
+            GROUP BY tp.id, tp.tipo_operacion
+        `;
+
+        // Reporte de Distribución Geográfica (Estado)
+        const queryGeog = `
+            SELECT 
+                COALESCE(e.estado, 'Sin Estado') AS etiqueta, 
+                COUNT(DISTINCT rsp.id) AS total
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            INNER JOIN estados e ON p.estado_id = e.id_estado
+            ${filterSolicitudes}
+            GROUP BY e.estado
+            ORDER BY total DESC
+        `;
+
+        // Reporte de Distribución por Centro de Salud
+        const queryCentros = `
+            SELECT 
+                COALESCE(cs.descripcion, 'Sin Centro') AS etiqueta, 
+                COUNT(DISTINCT rsp.id) AS total
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN lista_centro_salud cs ON rsp.centro_salud_id = cs.id
+            ${filterSolicitudes}
+            GROUP BY cs.id, cs.descripcion
+            ORDER BY total DESC
+        `;
+
+        const [
+            [resConsultas],
+            [resSolicitudes],
+            [resDiag],
+            [resTerap],
+            [resProc],
+            [resGeog],
+            [resCentros]
+        ] = await Promise.all([
+            db.query(queryConsultas, paramsConsultas),
+            db.query(querySolicitudes, paramsSolicitudes),
+            db.query(queryDiag, [...paramsSolicitudes]),
+            db.query(queryTerap, [...paramsSolicitudes]),
+            db.query(queryProc, [...paramsSolicitudes]),
+            db.query(queryGeog, [...paramsSolicitudes]),
+            db.query(queryCentros, [...paramsSolicitudes])
+        ]);
+
+        res.json({
+            success: true,
+            data: {
+                total_consultas: Number(resConsultas[0]?.total_consultas || 0),
+                total_solicitudes: Number(resSolicitudes[0]?.total_solicitudes || 0),
+                total_diagnosticos: Number(resDiag[0]?.total || 0),
+                total_terapeuticos: Number(resTerap[0]?.total || 0),
+                solicitudes_por_tipo: resProc.map(row => ({
+                    etiqueta: row.etiqueta,
+                    total: Number(row.total || 0)
+                })),
+                distribucion_geografica: {
+                    labels: resGeog.map(row => row.etiqueta),
+                    series: resGeog.map(row => Number(row.total || 0))
+                },
+                distribucion_centro: {
+                    labels: resCentros.map(row => row.etiqueta),
+                    series: resCentros.map(row => Number(row.total || 0))
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error("Error en getIndicadoresReportes:", error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 };
 

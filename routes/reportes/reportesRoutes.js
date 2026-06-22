@@ -36,4 +36,7 @@ router.get('/dashboard/estadisticas', ReportesController.getEstadisticasDashboar
 // Ejemplo de uso: /api/reportes/general?tipo_reporte=intervenidos&hospital_id=1
 router.get('/general', ReportesController.getReporteGeneral);
 
+// Obtener datos consolidados de indicadores con filtros globales
+router.get('/indicadores', ReportesController.getIndicadoresReportes);
+
 module.exports = router;
