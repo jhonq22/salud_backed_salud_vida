@@ -911,7 +911,7 @@ getReporteGeneral: async (req, res) => {
 
 getIndicadoresReportes: async (req, res) => {
     try {
-        const { fecha_inicio, fecha_final, centro_salud_id } = req.query;
+        const { fecha_inicio, fecha_final, centro_salud_id, estado_id } = req.query;
 
         let filterConsultas = " WHERE 1=1";
         let filterSolicitudes = " WHERE 1=1";
@@ -942,17 +942,30 @@ getIndicadoresReportes: async (req, res) => {
             paramsSolicitudes.push(centro_salud_id);
         }
 
+        if (estado_id && estado_id !== 'null' && estado_id !== '') {
+            const estadosArray = String(estado_id).split(',');
+            const placeholders = estadosArray.map(() => '?').join(',');
+            
+            filterConsultas += ` AND p.estado_id IN (${placeholders})`;
+            paramsConsultas.push(...estadosArray);
+
+            filterSolicitudes += ` AND p.estado_id IN (${placeholders})`;
+            paramsSolicitudes.push(...estadosArray);
+        }
+
         // 1er Reporte: Total Pacientes Atendidos (Independent counts)
         const queryConsultas = `
             SELECT COUNT(DISTINCT cm.id) AS total_consultas
             FROM consultas_medicas cm
             LEFT JOIN registrar_solicitud_pacientes rsp ON cm.paciente_id = rsp.paciente_id
+            LEFT JOIN pacientes p ON cm.paciente_id = p.id
             ${filterConsultas}
         `;
 
         const querySolicitudes = `
             SELECT COUNT(DISTINCT rsp.id) AS total_solicitudes
             FROM registrar_solicitud_pacientes rsp
+            LEFT JOIN pacientes p ON rsp.paciente_id = p.id
             ${filterSolicitudes}
         `;
 
@@ -961,6 +974,7 @@ getIndicadoresReportes: async (req, res) => {
             SELECT COUNT(DISTINCT rsp.id) AS total
             FROM registrar_solicitud_pacientes rsp
             INNER JOIN cateterismo_diagnostico_hemodinamia cdh ON rsp.id = cdh.solicitud_paciente_id
+            LEFT JOIN pacientes p ON rsp.paciente_id = p.id
             ${filterSolicitudes}
         `;
 
@@ -969,6 +983,7 @@ getIndicadoresReportes: async (req, res) => {
             SELECT COUNT(DISTINCT rsp.id) AS total
             FROM registrar_solicitud_pacientes rsp
             INNER JOIN cateterismo_terapeutico_hemodinamia cth ON rsp.id = cth.solicitud_paciente_id
+            LEFT JOIN pacientes p ON rsp.paciente_id = p.id
             ${filterSolicitudes}
         `;
 
@@ -976,11 +991,15 @@ getIndicadoresReportes: async (req, res) => {
         const queryProc = `
             SELECT 
                 tp.tipo_operacion AS etiqueta, 
-                COUNT(rsp.id) AS total
+                COALESCE(sub.total, 0) AS total
             FROM tipo_operaciones tp
-            LEFT JOIN registrar_solicitud_pacientes rsp ON tp.id = rsp.tipo_operacion_id 
-                ${filterSolicitudes.replace('WHERE', 'AND')}
-            GROUP BY tp.id, tp.tipo_operacion
+            LEFT JOIN (
+                SELECT rsp.tipo_operacion_id, COUNT(rsp.id) AS total
+                FROM registrar_solicitud_pacientes rsp
+                LEFT JOIN pacientes p ON rsp.paciente_id = p.id
+                ${filterSolicitudes}
+                GROUP BY rsp.tipo_operacion_id
+            ) sub ON tp.id = sub.tipo_operacion_id
         `;
 
         // Reporte de Distribución Geográfica (Estado)
@@ -1003,9 +1022,22 @@ getIndicadoresReportes: async (req, res) => {
                 COUNT(DISTINCT rsp.id) AS total
             FROM registrar_solicitud_pacientes rsp
             INNER JOIN lista_centro_salud cs ON rsp.centro_salud_id = cs.id
+            LEFT JOIN pacientes p ON rsp.paciente_id = p.id
             ${filterSolicitudes}
             GROUP BY cs.id, cs.descripcion
             ORDER BY total DESC
+        `;
+
+        // Reporte de Distribución por Estatus (Migrado para Indicadores)
+        const queryEstatus = `
+            SELECT 
+                COALESCE(es.nombre_estatus, 'Sin Estatus') AS etiqueta, 
+                COUNT(rsp.id) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            LEFT JOIN estatus_solicitudes es ON rsp.estatus_solicitud_id = es.id
+            LEFT JOIN pacientes p ON rsp.paciente_id = p.id
+            ${filterSolicitudes}
+            GROUP BY rsp.estatus_solicitud_id, es.nombre_estatus
         `;
 
         const [
@@ -1015,7 +1047,8 @@ getIndicadoresReportes: async (req, res) => {
             [resTerap],
             [resProc],
             [resGeog],
-            [resCentros]
+            [resCentros],
+            [resEstatus]
         ] = await Promise.all([
             db.query(queryConsultas, paramsConsultas),
             db.query(querySolicitudes, paramsSolicitudes),
@@ -1023,8 +1056,17 @@ getIndicadoresReportes: async (req, res) => {
             db.query(queryTerap, [...paramsSolicitudes]),
             db.query(queryProc, [...paramsSolicitudes]),
             db.query(queryGeog, [...paramsSolicitudes]),
-            db.query(queryCentros, [...paramsSolicitudes])
+            db.query(queryCentros, [...paramsSolicitudes]),
+            db.query(queryEstatus, [...paramsSolicitudes])
         ]);
+
+        const total_marcapasos = resProc
+            .filter(row => row.etiqueta.toLowerCase().includes('marcapaso'))
+            .reduce((sum, row) => sum + Number(row.total || 0), 0);
+
+        const total_hemodinamia = resProc
+            .filter(row => row.etiqueta.toLowerCase().includes('hemodinamia'))
+            .reduce((sum, row) => sum + Number(row.total || 0), 0);
 
         res.json({
             success: true,
@@ -1033,10 +1075,16 @@ getIndicadoresReportes: async (req, res) => {
                 total_solicitudes: Number(resSolicitudes[0]?.total_solicitudes || 0),
                 total_diagnosticos: Number(resDiag[0]?.total || 0),
                 total_terapeuticos: Number(resTerap[0]?.total || 0),
+                total_marcapasos: Number(total_marcapasos),
+                total_hemodinamia: Number(total_hemodinamia),
                 solicitudes_por_tipo: resProc.map(row => ({
                     etiqueta: row.etiqueta,
                     total: Number(row.total || 0)
                 })),
+                solicitudes_por_estatus: {
+                    labels: resEstatus.map(row => row.etiqueta),
+                    series: resEstatus.map(row => Number(row.total || 0))
+                },
                 distribucion_geografica: {
                     labels: resGeog.map(row => row.etiqueta),
                     series: resGeog.map(row => Number(row.total || 0))
