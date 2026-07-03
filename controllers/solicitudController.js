@@ -781,6 +781,8 @@ const PacientesConSolicitudes = async (req, res) => {
                 p.telefono_celular, 
                 p.telefono_local,
                 s.tipo_marca_paso_id, 
+                s.tipo_operacion_id,
+                IFNULL(tp.tipo_operacion, 'Sin tipo operacion') AS tipo_operacion,
                 DATE_FORMAT(s.fecha_cita, '%d/%m/%y') AS fecha_cita,
                 es.nombre_estatus AS estatus_nombre,
                 cs.descripcion AS centro_salud_nombre
@@ -788,6 +790,7 @@ const PacientesConSolicitudes = async (req, res) => {
             LEFT JOIN pacientes p ON s.paciente_id = p.id
             LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
             LEFT JOIN lista_centro_salud cs ON s.centro_salud_id = cs.id
+            LEFT JOIN tipo_operaciones tp ON s.tipo_operacion_id = tp.id
         `;
 
         const params = [];

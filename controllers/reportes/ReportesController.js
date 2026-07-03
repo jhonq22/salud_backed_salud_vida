@@ -578,7 +578,59 @@ reporteCaterismo: async (req, res) => {
 
                 // --- ADAPTACIONES PARA EL PDF ---
                 cateterismoMaster.descripcion_texto = cateterismoMaster.descripcion;
-                cateterismoMaster.conclusion = cateterismoMaster.conclusiones_otros || '';
+                
+                // Resolver conclusiones_id a sus textos reales
+                let conclusIds = [];
+                if (cateterismoMaster.conclusiones_id) {
+                    try {
+                        conclusIds = typeof cateterismoMaster.conclusiones_id === 'string'
+                            ? JSON.parse(cateterismoMaster.conclusiones_id)
+                            : cateterismoMaster.conclusiones_id;
+                    } catch (e) {
+                        conclusIds = [];
+                    }
+                }
+
+                let conclusionesTextos = [];
+                let idsToFetch = [];
+
+                if (Array.isArray(conclusIds)) {
+                    conclusIds.forEach(c => {
+                        if (c && typeof c === 'object') {
+                            if (c.label) {
+                                conclusionesTextos.push(c.label);
+                            }
+                        } else if (c) {
+                            idsToFetch.push(c);
+                        }
+                    });
+                }
+
+                if (idsToFetch.length > 0) {
+                    try {
+                        const [conclusionesRows] = await db.query(
+                            'SELECT descripcion FROM lista_conclusiones_cateterismo WHERE id IN (?)',
+                            [idsToFetch]
+                        );
+                        conclusionesTextos.push(...conclusionesRows.map(row => row.descripcion));
+                    } catch (err) {
+                        console.error("Error al obtener descripciones de conclusiones:", err);
+                    }
+                }
+
+                let conclusionFinal = '';
+                if (conclusionesTextos.length > 0) {
+                    conclusionFinal += conclusionesTextos.join('\n');
+                }
+                if (cateterismoMaster.conclusiones_otros) {
+                    if (conclusionFinal) {
+                        conclusionFinal += '\n' + cateterismoMaster.conclusiones_otros;
+                    } else {
+                        conclusionFinal = cateterismoMaster.conclusiones_otros;
+                    }
+                }
+                cateterismoMaster.conclusion = conclusionFinal || '';
+
                 cateterismoMaster.complicacion = cateterismoMaster.complicacion_acceso_nombre || '';
             }
 
