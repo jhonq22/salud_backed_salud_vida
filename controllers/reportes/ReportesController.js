@@ -1092,6 +1092,22 @@ getIndicadoresReportes: async (req, res) => {
             GROUP BY rsp.estatus_solicitud_id, es.nombre_estatus
         `;
 
+        // Reporte de Marcapasos Implantados agrupados por tipo
+        const queryMarcapasosImplantados = `
+            SELECT 
+                tmp.tipo AS etiqueta, 
+                COUNT(sub.id) AS total
+            FROM tipo_marca_pasos tmp
+            LEFT JOIN (
+                SELECT rsp.id, rsp.tipo_marca_paso_id 
+                FROM registrar_solicitud_pacientes rsp
+                LEFT JOIN pacientes p ON rsp.paciente_id = p.id
+                ${filterSolicitudes}
+            ) sub ON tmp.id = sub.tipo_marca_paso_id
+            WHERE tmp.estatus = 1
+            GROUP BY tmp.id, tmp.tipo
+        `;
+
         const [
             [resConsultas],
             [resSolicitudes],
@@ -1100,7 +1116,8 @@ getIndicadoresReportes: async (req, res) => {
             [resProc],
             [resGeog],
             [resCentros],
-            [resEstatus]
+            [resEstatus],
+            [resMarcapasosImplantados]
         ] = await Promise.all([
             db.query(queryConsultas, paramsConsultas),
             db.query(querySolicitudes, paramsSolicitudes),
@@ -1109,7 +1126,8 @@ getIndicadoresReportes: async (req, res) => {
             db.query(queryProc, [...paramsSolicitudes]),
             db.query(queryGeog, [...paramsSolicitudes]),
             db.query(queryCentros, [...paramsSolicitudes]),
-            db.query(queryEstatus, [...paramsSolicitudes])
+            db.query(queryEstatus, [...paramsSolicitudes]),
+            db.query(queryMarcapasosImplantados, [...paramsSolicitudes])
         ]);
 
         const total_marcapasos = resProc
@@ -1118,6 +1136,9 @@ getIndicadoresReportes: async (req, res) => {
 
         const total_hemodinamia = resProc
             .filter(row => row.etiqueta.toLowerCase().includes('hemodinamia'))
+            .reduce((sum, row) => sum + Number(row.total || 0), 0);
+
+        const total_marcapasos_implantados = resMarcapasosImplantados
             .reduce((sum, row) => sum + Number(row.total || 0), 0);
 
         res.json({
@@ -1129,6 +1150,11 @@ getIndicadoresReportes: async (req, res) => {
                 total_terapeuticos: Number(resTerap[0]?.total || 0),
                 total_marcapasos: Number(total_marcapasos),
                 total_hemodinamia: Number(total_hemodinamia),
+                total_marcapasos_implantados: Number(total_marcapasos_implantados),
+                marcapasos_implantados_detalles: resMarcapasosImplantados.map(row => ({
+                    etiqueta: row.etiqueta,
+                    total: Number(row.total || 0)
+                })),
                 solicitudes_por_tipo: resProc.map(row => ({
                     etiqueta: row.etiqueta,
                     total: Number(row.total || 0)
