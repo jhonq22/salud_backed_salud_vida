@@ -39,4 +39,7 @@ router.get('/general', ReportesController.getReporteGeneral);
 // Obtener datos consolidados de indicadores con filtros globales
 router.get('/indicadores', ReportesController.getIndicadoresReportes);
 
+// Obtener datos del Reporte Resumen Base
+router.get('/resumen-base', ReportesController.getReporteResumenBase);
+
 module.exports = router;

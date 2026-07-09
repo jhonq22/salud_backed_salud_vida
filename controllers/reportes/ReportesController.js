@@ -1181,6 +1181,235 @@ getIndicadoresReportes: async (req, res) => {
             error: error.message
         });
     }
+},
+
+getReporteResumenBase: async (req, res) => {
+    try {
+        const { fecha_inicio, fecha_fin, centro_salud_id, estado_id } = req.query;
+
+        // Determine the year to calculate the yearly column
+        let year = new Date().getFullYear();
+        if (fecha_fin && fecha_fin !== 'null' && fecha_fin !== '') {
+            year = new Date(fecha_fin).getFullYear();
+        } else if (fecha_inicio && fecha_inicio !== 'null' && fecha_inicio !== '') {
+            year = new Date(fecha_inicio).getFullYear();
+        }
+
+        // Helpers for filters
+        const getFilters = (dateField, isYearOnly = false) => {
+            let sql = " WHERE 1=1";
+            let params = [];
+
+            if (centro_salud_id && centro_salud_id !== 'null' && centro_salud_id !== '') {
+                sql += " AND rsp.centro_salud_id = ?";
+                params.push(centro_salud_id);
+            }
+
+            if (estado_id && estado_id !== 'null' && estado_id !== '') {
+                const estadosArray = String(estado_id).split(',');
+                const placeholders = estadosArray.map(() => '?').join(',');
+                sql += ` AND p.estado_id IN (${placeholders})`;
+                params.push(...estadosArray);
+            }
+
+            if (isYearOnly) {
+                if (dateField) {
+                    sql += ` AND YEAR(${dateField}) = ?`;
+                    params.push(year);
+                }
+            } else {
+                if (fecha_inicio && fecha_inicio !== 'null' && fecha_inicio !== '') {
+                    sql += ` AND DATE(${dateField}) >= ?`;
+                    params.push(fecha_inicio);
+                }
+                if (fecha_fin && fecha_fin !== 'null' && fecha_fin !== '') {
+                    sql += ` AND DATE(${dateField}) <= ?`;
+                    params.push(fecha_fin);
+                }
+            }
+
+            return { sql, params };
+        };
+
+        // Build Queries for Custom Date Range (VALOR)
+        const f1_range = getFilters('p.fecha_creacion');
+        const q1_range = `
+            SELECT COUNT(DISTINCT p.id) AS total 
+            FROM pacientes p 
+            LEFT JOIN registrar_solicitud_pacientes rsp ON p.id = rsp.paciente_id 
+            ${f1_range.sql} AND p.estatus = 1
+        `;
+
+        const f2_range = getFilters('rsp.fecha_creacion');
+        const q2_range = `
+            SELECT COUNT(DISTINCT rsp.id) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f2_range.sql} AND rsp.estatus = 1
+        `;
+
+        const f3_range = getFilters('rsp.fecha_creacion');
+        const q3_range = `
+            SELECT COUNT(DISTINCT cdh.id) AS total 
+            FROM cateterismo_diagnostico_hemodinamia cdh
+            INNER JOIN registrar_solicitud_pacientes rsp ON cdh.solicitud_paciente_id = rsp.id
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f3_range.sql} AND cdh.sugerencia_diagnostico_id = 51 AND cdh.estatus = 1
+        `;
+
+        const f4_range = getFilters('rsp.fecha_creacion');
+        const q4_range = `
+            SELECT COUNT(DISTINCT rsp.id) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f4_range.sql} AND rsp.marcapaso = 1 AND rsp.estatus = 1
+        `;
+
+        const f5_range = getFilters('rsp.fecha_creacion');
+        const q5_range = `
+            SELECT COUNT(DISTINCT rsp.id) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f5_range.sql} AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
+        `;
+
+        const f6_range = getFilters('rsp.fecha_cita');
+        const q6_range = `
+            SELECT COUNT(rsp.fecha_cita) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f6_range.sql} AND rsp.fecha_cita IS NOT NULL AND rsp.estatus = 1
+        `;
+
+        const f7_range = getFilters('rsp.fecha_cita');
+        const q7_range = `
+            SELECT COUNT(rsp.fecha_cita) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f7_range.sql} AND rsp.fecha_cita IS NOT NULL AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
+        `;
+
+        // Build Queries for Year (AÑO)
+        const f1_year = getFilters('p.fecha_creacion', true);
+        const q1_year = `
+            SELECT COUNT(DISTINCT p.id) AS total 
+            FROM pacientes p 
+            LEFT JOIN registrar_solicitud_pacientes rsp ON p.id = rsp.paciente_id 
+            ${f1_year.sql} AND p.estatus = 1
+        `;
+
+        const f2_year = getFilters('rsp.fecha_creacion', true);
+        const q2_year = `
+            SELECT COUNT(DISTINCT rsp.id) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f2_year.sql} AND rsp.estatus = 1
+        `;
+
+        const f3_year = getFilters('rsp.fecha_creacion', true);
+        const q3_year = `
+            SELECT COUNT(DISTINCT cdh.id) AS total 
+            FROM cateterismo_diagnostico_hemodinamia cdh
+            INNER JOIN registrar_solicitud_pacientes rsp ON cdh.solicitud_paciente_id = rsp.id
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f3_year.sql} AND cdh.sugerencia_diagnostico_id = 51 AND cdh.estatus = 1
+        `;
+
+        const f4_year = getFilters('rsp.fecha_creacion', true);
+        const q4_year = `
+            SELECT COUNT(DISTINCT rsp.id) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f4_year.sql} AND rsp.marcapaso = 1 AND rsp.estatus = 1
+        `;
+
+        const f5_year = getFilters('rsp.fecha_creacion', true);
+        const q5_year = `
+            SELECT COUNT(DISTINCT rsp.id) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f5_year.sql} AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
+        `;
+
+        const f6_year = getFilters('rsp.fecha_cita', true);
+        const q6_year = `
+            SELECT COUNT(rsp.fecha_cita) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f6_year.sql} AND rsp.fecha_cita IS NOT NULL AND rsp.estatus = 1
+        `;
+
+        const f7_year = getFilters('rsp.fecha_cita', true);
+        const q7_year = `
+            SELECT COUNT(rsp.fecha_cita) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            ${f7_year.sql} AND rsp.fecha_cita IS NOT NULL AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
+        `;
+
+        // Run all in parallel
+        const [
+            [r1_range], [r2_range], [r3_range], [r4_range], [r5_range], [r6_range], [r7_range],
+            [r1_year], [r2_year], [r3_year], [r4_year], [r5_year], [r6_year], [r7_year]
+        ] = await Promise.all([
+            db.query(q1_range, f1_range.params),
+            db.query(q2_range, f2_range.params),
+            db.query(q3_range, f3_range.params),
+            db.query(q4_range, f4_range.params),
+            db.query(q5_range, f5_range.params),
+            db.query(q6_range, f6_range.params),
+            db.query(q7_range, f7_range.params),
+            db.query(q1_year, f1_year.params),
+            db.query(q2_year, f2_year.params),
+            db.query(q3_year, f3_year.params),
+            db.query(q4_year, f4_year.params),
+            db.query(q5_year, f5_year.params),
+            db.query(q6_year, f6_year.params),
+            db.query(q7_year, f7_year.params)
+        ]);
+
+        const v1 = r1_range[0]?.total || 0;
+        const v2 = r2_range[0]?.total || 0;
+        const v3 = r3_range[0]?.total || 0;
+        const v4 = r4_range[0]?.total || 0;
+        const v5 = r5_range[0]?.total || 0;
+        const v6 = r6_range[0]?.total || 0;
+        const v7 = r7_range[0]?.total || 0;
+
+        const y1 = r1_year[0]?.total || 0;
+        const y2 = r2_year[0]?.total || 0;
+        const y3 = r3_year[0]?.total || 0;
+        const y4 = r4_year[0]?.total || 0;
+        const y5 = r5_year[0]?.total || 0;
+        const y6 = r6_year[0]?.total || 0;
+        const y7 = r7_year[0]?.total || 0;
+
+        // Calculate percentages relative to Nro. de Pacientes (v1 and y1)
+        const getPct = (val, base) => base > 0 ? Number(((val / base) * 100).toFixed(2)) : 0;
+
+        const metrics = [
+            { dato: "Nro. de Pacientes", valor: v1, porcentaje: v1 > 0 ? 100 : 0, anio: y1 },
+            { dato: "Nro. de Diagnosticados", valor: v2, porcentaje: getPct(v2, v1), anio: y2 },
+            { dato: "Nro. de Angioplastias", valor: v3, porcentaje: getPct(v3, v1), anio: y3 },
+            { dato: "Nro. de Marcapasos", valor: v4, porcentaje: getPct(v4, v1), anio: y4 },
+            { dato: "Total de procedimiento", valor: v5, porcentaje: getPct(v5, v1), anio: y5 },
+            { dato: "Total x Días", valor: v6, porcentaje: getPct(v6, v1), anio: y6 },
+            { dato: "Procedimientos x Día", valor: v7, porcentaje: getPct(v7, v1), anio: y7 }
+        ];
+
+        res.json({
+            success: true,
+            year,
+            data: metrics
+        });
+
+    } catch (error) {
+        console.error("Error en getReporteResumenBase:", error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
 }
 
 };
