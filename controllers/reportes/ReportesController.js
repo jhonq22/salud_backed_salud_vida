@@ -1255,7 +1255,7 @@ getReporteResumenBase: async (req, res) => {
             FROM cateterismo_terapeutico_hemodinamia cth
             INNER JOIN registrar_solicitud_pacientes rsp ON cth.solicitud_paciente_id = rsp.id
             INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f3_range.sql} AND cth.estatus = 1 AND rsp.estatus = 1
+            ${f3_range.sql} AND rsp.estatus = 1
         `;
 
         const f4_range = getFilters('rsp.fecha_creacion');
@@ -1290,7 +1290,7 @@ getReporteResumenBase: async (req, res) => {
             FROM cateterismo_terapeutico_hemodinamia cth
             INNER JOIN registrar_solicitud_pacientes rsp ON cth.solicitud_paciente_id = rsp.id
             INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f3_year.sql} AND cth.estatus = 1 AND rsp.estatus = 1
+            ${f3_year.sql} AND rsp.estatus = 1
         `;
 
         const f4_year = getFilters('rsp.fecha_creacion', true);
