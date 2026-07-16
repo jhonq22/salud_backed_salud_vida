@@ -1242,19 +1242,20 @@ getReporteResumenBase: async (req, res) => {
 
         const f2_range = getFilters('rsp.fecha_creacion');
         const q2_range = `
-            SELECT COUNT(DISTINCT rsp.id) AS total 
-            FROM registrar_solicitud_pacientes rsp
+            SELECT COUNT(DISTINCT cdh.solicitud_paciente_id) AS total 
+            FROM cateterismo_diagnostico_hemodinamia cdh
+            INNER JOIN registrar_solicitud_pacientes rsp ON cdh.solicitud_paciente_id = rsp.id
             INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f2_range.sql} AND rsp.estatus = 1
+            ${f2_range.sql} AND cdh.estatus = 1 AND rsp.estatus = 1
         `;
 
         const f3_range = getFilters('rsp.fecha_creacion');
         const q3_range = `
-            SELECT COUNT(DISTINCT cdh.id) AS total 
-            FROM cateterismo_diagnostico_hemodinamia cdh
-            INNER JOIN registrar_solicitud_pacientes rsp ON cdh.solicitud_paciente_id = rsp.id
+            SELECT COUNT(DISTINCT cth.solicitud_paciente_id) AS total 
+            FROM cateterismo_terapeutico_hemodinamia cth
+            INNER JOIN registrar_solicitud_pacientes rsp ON cth.solicitud_paciente_id = rsp.id
             INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f3_range.sql} AND cdh.sugerencia_diagnostico_id = 51 AND cdh.estatus = 1
+            ${f3_range.sql} AND cth.estatus = 1 AND rsp.estatus = 1
         `;
 
         const f4_range = getFilters('rsp.fecha_creacion');
@@ -1262,31 +1263,7 @@ getReporteResumenBase: async (req, res) => {
             SELECT COUNT(DISTINCT rsp.id) AS total 
             FROM registrar_solicitud_pacientes rsp
             INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f4_range.sql} AND rsp.marcapaso = 1 AND rsp.estatus = 1
-        `;
-
-        const f5_range = getFilters('rsp.fecha_creacion');
-        const q5_range = `
-            SELECT COUNT(DISTINCT rsp.id) AS total 
-            FROM registrar_solicitud_pacientes rsp
-            INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f5_range.sql} AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
-        `;
-
-        const f6_range = getFilters('rsp.fecha_cita');
-        const q6_range = `
-            SELECT COUNT(rsp.fecha_cita) AS total 
-            FROM registrar_solicitud_pacientes rsp
-            INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f6_range.sql} AND rsp.fecha_cita IS NOT NULL AND rsp.estatus = 1
-        `;
-
-        const f7_range = getFilters('rsp.fecha_cita');
-        const q7_range = `
-            SELECT COUNT(rsp.fecha_cita) AS total 
-            FROM registrar_solicitud_pacientes rsp
-            INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f7_range.sql} AND rsp.fecha_cita IS NOT NULL AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
+            ${f4_range.sql} AND rsp.marcapaso = 1 AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
         `;
 
         // Build Queries for Year (AÑO)
@@ -1300,19 +1277,20 @@ getReporteResumenBase: async (req, res) => {
 
         const f2_year = getFilters('rsp.fecha_creacion', true);
         const q2_year = `
-            SELECT COUNT(DISTINCT rsp.id) AS total 
-            FROM registrar_solicitud_pacientes rsp
+            SELECT COUNT(DISTINCT cdh.solicitud_paciente_id) AS total 
+            FROM cateterismo_diagnostico_hemodinamia cdh
+            INNER JOIN registrar_solicitud_pacientes rsp ON cdh.solicitud_paciente_id = rsp.id
             INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f2_year.sql} AND rsp.estatus = 1
+            ${f2_year.sql} AND cdh.estatus = 1 AND rsp.estatus = 1
         `;
 
         const f3_year = getFilters('rsp.fecha_creacion', true);
         const q3_year = `
-            SELECT COUNT(DISTINCT cdh.id) AS total 
-            FROM cateterismo_diagnostico_hemodinamia cdh
-            INNER JOIN registrar_solicitud_pacientes rsp ON cdh.solicitud_paciente_id = rsp.id
+            SELECT COUNT(DISTINCT cth.solicitud_paciente_id) AS total 
+            FROM cateterismo_terapeutico_hemodinamia cth
+            INNER JOIN registrar_solicitud_pacientes rsp ON cth.solicitud_paciente_id = rsp.id
             INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f3_year.sql} AND cdh.sugerencia_diagnostico_id = 51 AND cdh.estatus = 1
+            ${f3_year.sql} AND cth.estatus = 1 AND rsp.estatus = 1
         `;
 
         const f4_year = getFilters('rsp.fecha_creacion', true);
@@ -1320,69 +1298,72 @@ getReporteResumenBase: async (req, res) => {
             SELECT COUNT(DISTINCT rsp.id) AS total 
             FROM registrar_solicitud_pacientes rsp
             INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f4_year.sql} AND rsp.marcapaso = 1 AND rsp.estatus = 1
-        `;
-
-        const f5_year = getFilters('rsp.fecha_creacion', true);
-        const q5_year = `
-            SELECT COUNT(DISTINCT rsp.id) AS total 
-            FROM registrar_solicitud_pacientes rsp
-            INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f5_year.sql} AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
-        `;
-
-        const f6_year = getFilters('rsp.fecha_cita', true);
-        const q6_year = `
-            SELECT COUNT(rsp.fecha_cita) AS total 
-            FROM registrar_solicitud_pacientes rsp
-            INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f6_year.sql} AND rsp.fecha_cita IS NOT NULL AND rsp.estatus = 1
-        `;
-
-        const f7_year = getFilters('rsp.fecha_cita', true);
-        const q7_year = `
-            SELECT COUNT(rsp.fecha_cita) AS total 
-            FROM registrar_solicitud_pacientes rsp
-            INNER JOIN pacientes p ON rsp.paciente_id = p.id
-            ${f7_year.sql} AND rsp.fecha_cita IS NOT NULL AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
+            ${f4_year.sql} AND rsp.marcapaso = 1 AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
         `;
 
         // Run all in parallel
         const [
-            [r1_range], [r2_range], [r3_range], [r4_range], [r5_range], [r6_range], [r7_range],
-            [r1_year], [r2_year], [r3_year], [r4_year], [r5_year], [r6_year], [r7_year]
+            [r1_range], [r2_range], [r3_range], [r4_range],
+            [r1_year], [r2_year], [r3_year], [r4_year]
         ] = await Promise.all([
             db.query(q1_range, f1_range.params),
             db.query(q2_range, f2_range.params),
             db.query(q3_range, f3_range.params),
             db.query(q4_range, f4_range.params),
-            db.query(q5_range, f5_range.params),
-            db.query(q6_range, f6_range.params),
-            db.query(q7_range, f7_range.params),
             db.query(q1_year, f1_year.params),
             db.query(q2_year, f2_year.params),
             db.query(q3_year, f3_year.params),
-            db.query(q4_year, f4_year.params),
-            db.query(q5_year, f5_year.params),
-            db.query(q6_year, f6_year.params),
-            db.query(q7_year, f7_year.params)
+            db.query(q4_year, f4_year.params)
         ]);
 
         const v1 = r1_range[0]?.total || 0;
         const v2 = r2_range[0]?.total || 0;
         const v3 = r3_range[0]?.total || 0;
         const v4 = r4_range[0]?.total || 0;
-        const v5 = r5_range[0]?.total || 0;
-        const v6 = r6_range[0]?.total || 0;
-        const v7 = r7_range[0]?.total || 0;
 
         const y1 = r1_year[0]?.total || 0;
         const y2 = r2_year[0]?.total || 0;
         const y3 = r3_year[0]?.total || 0;
         const y4 = r4_year[0]?.total || 0;
-        const y5 = r5_year[0]?.total || 0;
-        const y6 = r6_year[0]?.total || 0;
-        const y7 = r7_year[0]?.total || 0;
+
+        // 4ta consulta: total de procedimiento (suma de 1er, 2do y 3er)
+        const v5 = v2 + v3 + v4;
+        const y5 = y2 + y3 + y4;
+
+        // Helper to calculate days between two dates or for a whole year
+        const getDaysBetween = (startStr, endStr, targetYear) => {
+            let start = startStr ? new Date(startStr) : null;
+            let end = endStr ? new Date(endStr) : null;
+            
+            if (start && isNaN(start.getTime())) start = null;
+            if (end && isNaN(end.getTime())) end = null;
+
+            if (start && end) {
+                const diffTime = Math.abs(end - start);
+                return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            } else if (start) {
+                const diffTime = Math.abs(new Date() - start);
+                return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            } else if (end) {
+                const startOfYear = new Date(`${end.getFullYear()}-01-01`);
+                const diffTime = Math.abs(end - startOfYear);
+                return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            } else {
+                const isLeap = (targetYear % 4 === 0 && targetYear % 100 !== 0) || (targetYear % 400 === 0);
+                return isLeap ? 366 : 365;
+            }
+        };
+
+        const cleanFechaInicio = (fecha_inicio && fecha_inicio !== 'null' && fecha_inicio !== '') ? fecha_inicio : null;
+        const cleanFechaFin = (fecha_fin && fecha_fin !== 'null' && fecha_fin !== '') ? fecha_fin : null;
+
+        // 5ta consulta: Total x Días
+        const v6 = getDaysBetween(cleanFechaInicio, cleanFechaFin, year);
+        const y6 = getDaysBetween(null, null, year);
+
+        // 6ta consulta: Procedimientos x Día
+        const v7 = v6 > 0 ? Number((v5 / v6).toFixed(2)) : 0;
+        const y7 = y6 > 0 ? Number((y5 / y6).toFixed(2)) : 0;
 
         // Calculate percentages relative to Nro. de Pacientes (v1 and y1)
         const getPct = (val, base) => base > 0 ? Number(((val / base) * 100).toFixed(2)) : 0;
