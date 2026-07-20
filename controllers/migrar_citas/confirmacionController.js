@@ -14,7 +14,7 @@ const calcularEdad = (fechaNacimiento) => {
 };
 
 const confirmarCitas = async (req, res) => {
-    const { centro_salud_id } = req.body;
+    const { centro_salud_id, fecha_cita } = req.body;
 
     if (!centro_salud_id) {
         return res.status(400).json({ status: true, msg: 'El ID del centro de salud es obligatorio.' });
@@ -130,6 +130,15 @@ const confirmarCitas = async (req, res) => {
             );
 
             procesados++;
+        }
+
+        if (fecha_cita) {
+            await connection.query(
+                `INSERT INTO control_asignacion_citas (centro_salud_id, ultima_fecha_asignada)
+                 VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE ultima_fecha_asignada = ?`,
+                [centro_salud_id, fecha_cita, fecha_cita]
+            );
         }
 
         await connection.commit();
