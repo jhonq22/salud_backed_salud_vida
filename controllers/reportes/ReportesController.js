@@ -1301,19 +1301,39 @@ getReporteResumenBase: async (req, res) => {
             ${f4_year.sql} AND rsp.marcapaso = 1 AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
         `;
 
+        const q4_range_detalles = `
+            SELECT tmp.tipo AS etiqueta, COUNT(DISTINCT rsp.id) AS total
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            INNER JOIN tipo_marca_pasos tmp ON rsp.tipo_marca_paso_id = tmp.id
+            ${f4_range.sql} AND rsp.marcapaso = 1 AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
+            GROUP BY tmp.tipo
+        `;
+
+        const q4_year_detalles = `
+            SELECT tmp.tipo AS etiqueta, COUNT(DISTINCT rsp.id) AS total
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN pacientes p ON rsp.paciente_id = p.id
+            INNER JOIN tipo_marca_pasos tmp ON rsp.tipo_marca_paso_id = tmp.id
+            ${f4_year.sql} AND rsp.marcapaso = 1 AND rsp.estatus_solicitud_id = 3 AND rsp.estatus = 1
+            GROUP BY tmp.tipo
+        `;
+
         // Run all in parallel
         const [
-            [r1_range], [r2_range], [r3_range], [r4_range],
-            [r1_year], [r2_year], [r3_year], [r4_year]
+            [r1_range], [r2_range], [r3_range], [r4_range], [r4_range_detalles],
+            [r1_year], [r2_year], [r3_year], [r4_year], [r4_year_detalles]
         ] = await Promise.all([
             db.query(q1_range, f1_range.params),
             db.query(q2_range, f2_range.params),
             db.query(q3_range, f3_range.params),
             db.query(q4_range, f4_range.params),
+            db.query(q4_range_detalles, f4_range.params),
             db.query(q1_year, f1_year.params),
             db.query(q2_year, f2_year.params),
             db.query(q3_year, f3_year.params),
-            db.query(q4_year, f4_year.params)
+            db.query(q4_year, f4_year.params),
+            db.query(q4_year_detalles, f4_year.params)
         ]);
 
         const v1 = r1_range[0]?.total || 0;
@@ -1325,6 +1345,27 @@ getReporteResumenBase: async (req, res) => {
         const y2 = r2_year[0]?.total || 0;
         const y3 = r3_year[0]?.total || 0;
         const y4 = r4_year[0]?.total || 0;
+
+        // Process details
+        let unicameral_range = 0;
+        let bicameral_range = 0;
+        r4_range_detalles.forEach(row => {
+            if (row.etiqueta && row.etiqueta.toLowerCase().includes('unicameral')) {
+                unicameral_range += row.total;
+            } else if (row.etiqueta && row.etiqueta.toLowerCase().includes('bicameral')) {
+                bicameral_range += row.total;
+            }
+        });
+
+        let unicameral_year = 0;
+        let bicameral_year = 0;
+        r4_year_detalles.forEach(row => {
+            if (row.etiqueta && row.etiqueta.toLowerCase().includes('unicameral')) {
+                unicameral_year += row.total;
+            } else if (row.etiqueta && row.etiqueta.toLowerCase().includes('bicameral')) {
+                bicameral_year += row.total;
+            }
+        });
 
         // 4ta consulta: total de procedimiento (suma de 1er, 2do y 3er)
         const v5 = v2 + v3 + v4;
@@ -1372,7 +1413,7 @@ getReporteResumenBase: async (req, res) => {
             { dato: "Nro. de Pacientes", valor: v1, porcentaje: v1 > 0 ? 100 : 0, anio: y1 },
             { dato: "Nro. de Diagnosticados", valor: v2, porcentaje: getPct(v2, v1), anio: y2 },
             { dato: "Nro. de Angioplastias", valor: v3, porcentaje: getPct(v3, v1), anio: y3 },
-            { dato: "Nro. de Marcapasos", valor: v4, porcentaje: getPct(v4, v1), anio: y4 },
+            { dato: "Nro. de Marcapasos", valor: `Total: ${v4}\nUnicameral: ${unicameral_range}\nBicameral: ${bicameral_range}`, porcentaje: getPct(v4, v1), anio: `Total: ${y4}\nUnicameral: ${unicameral_year}\nBicameral: ${bicameral_year}` },
             { dato: "Total de procedimiento", valor: v5, porcentaje: getPct(v5, v1), anio: y5 },
             { dato: "Total x Días", valor: v6, porcentaje: getPct(v6, v1), anio: y6 },
             { dato: "Procedimientos x Día", valor: v7, porcentaje: getPct(v7, v1), anio: y7 }
