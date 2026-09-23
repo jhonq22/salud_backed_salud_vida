@@ -107,10 +107,10 @@ const confirmarCitas = async (req, res) => {
             let valorMarcapaso = 0;
             let tipoOperacionId = 1; // Valor por defecto en caso de que no coincida con ninguno
 
-            if (tipoOp === 'MARCAPASO') {
+            if (tipoOp === 'MARCAPASO' || tipoOp === 'MARCAPASOS') {
                 valorMarcapaso = 1;
                 tipoOperacionId = 1;
-            } else if (tipoOp === 'HEMODINAMIA') {
+            } else if (tipoOp === 'CATETERISMO' || tipoOp === 'HEMODINAMIA') {
                 valorMarcapaso = 0;
                 tipoOperacionId = 2;
             }

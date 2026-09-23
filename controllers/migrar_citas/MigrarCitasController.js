@@ -87,6 +87,26 @@ const subirExcelTemporal = async (req, res) => {
                     msg: `Error en la fila ${filaExcelNum}: La CÉDULA '${cedulaStr}' es inválida. Solo debe contener números (Ejemplo correcto: 2644841, no V264484).` 
                 });
             }
+
+            // Validar tipo de operación (obligatorio: CATETERISMO o MARCAPASO)
+            const tipoOperacionRaw = fila['TIPO_OPERACION'] !== undefined && fila['TIPO_OPERACION'] !== null 
+                ? String(fila['TIPO_OPERACION']).trim().toUpperCase() 
+                : '';
+
+            if (!tipoOperacionRaw) {
+                return res.status(400).json({ 
+                    msg: `Error en la fila ${filaExcelNum}: El campo 'TIPO_OPERACION' está vacío. Debe ser CATETERISMO o MARCAPASO.` 
+                });
+            }
+
+            if (tipoOperacionRaw !== 'CATETERISMO' && tipoOperacionRaw !== 'MARCAPASO' && tipoOperacionRaw !== 'MARCAPASOS') {
+                return res.status(400).json({ 
+                    msg: `Error en la fila ${filaExcelNum}: El tipo de operación '${fila['TIPO_OPERACION']}' no es válido. Solo se permite CATETERISMO o MARCAPASO.` 
+                });
+            }
+
+            // Sanitizar a estándar MARCAPASO o CATETERISMO
+            fila['TIPO_OPERACION'] = tipoOperacionRaw === 'MARCAPASOS' ? 'MARCAPASO' : tipoOperacionRaw;
             
             // Reasignamos para asegurar que se maneje como string limpio en adelante
             fila['CEDULA'] = cedulaStr; 
