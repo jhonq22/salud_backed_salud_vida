@@ -88,24 +88,24 @@ const subirExcelTemporal = async (req, res) => {
                 });
             }
 
-            // Validar tipo de operación (obligatorio: CATETERISMO o MARCAPASO)
+            // Validar tipo de operación (obligatorio: CATETERISMO, HEMODINAMIA o MARCAPASO)
             const tipoOperacionRaw = fila['TIPO_OPERACION'] !== undefined && fila['TIPO_OPERACION'] !== null 
                 ? String(fila['TIPO_OPERACION']).trim().toUpperCase() 
                 : '';
 
             if (!tipoOperacionRaw) {
                 return res.status(400).json({ 
-                    msg: `Error en la fila ${filaExcelNum}: El campo 'TIPO_OPERACION' está vacío. Debe ser CATETERISMO o MARCAPASO.` 
+                    msg: `Error en la fila ${filaExcelNum}: El campo 'TIPO_OPERACION' está vacío. Debe ser CATETERISMO, HEMODINAMIA o MARCAPASO.` 
                 });
             }
 
-            if (tipoOperacionRaw !== 'CATETERISMO' && tipoOperacionRaw !== 'MARCAPASO' && tipoOperacionRaw !== 'MARCAPASOS') {
+            if (tipoOperacionRaw !== 'CATETERISMO' && tipoOperacionRaw !== 'HEMODINAMIA' && tipoOperacionRaw !== 'MARCAPASO' && tipoOperacionRaw !== 'MARCAPASOS') {
                 return res.status(400).json({ 
-                    msg: `Error en la fila ${filaExcelNum}: El tipo de operación '${fila['TIPO_OPERACION']}' no es válido. Solo se permite CATETERISMO o MARCAPASO.` 
+                    msg: `Error en la fila ${filaExcelNum}: El tipo de operación '${fila['TIPO_OPERACION']}' no es válido. Solo se permite CATETERISMO, HEMODINAMIA o MARCAPASO.` 
                 });
             }
 
-            // Sanitizar a estándar MARCAPASO o CATETERISMO
+            // Sanitizar a estándar MARCAPASO o mantener el valor válido (CATETERISMO / HEMODINAMIA)
             fila['TIPO_OPERACION'] = tipoOperacionRaw === 'MARCAPASOS' ? 'MARCAPASO' : tipoOperacionRaw;
             
             // Reasignamos para asegurar que se maneje como string limpio en adelante
