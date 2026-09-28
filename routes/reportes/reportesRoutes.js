@@ -12,6 +12,7 @@ const ReportesController = require('../../controllers/reportes/ReportesControlle
 router.get('/sabana/:solicitud_id', ReportesController.getSabanaPaciente);
 router.get('/sabana/hemodinamia/:solicitud_id', ReportesController.getSabanaHemodinamia);
 router.get('/sabana/caterismo/:solicitud_id', ReportesController.reporteCaterismo);
+router.get('/sabana/cateterismo-terapeutico/:solicitud_id', ReportesController.reporteCateterismoTerapeutico);
 
 
 // Obtener reporte técnico del implante de Marcapasos

@@ -686,6 +686,175 @@ reporteCaterismo: async (req, res) => {
         }
     },
 
+    reporteCateterismoTerapeutico: async (req, res) => {
+        try {
+            const solicitud_id = req.params.solicitud_id || req.params.solicitudId;
+
+            if (!solicitud_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: "El parámetro solicitud_id es requerido."
+                });
+            }
+
+            // 0. DATOS DEL PACIENTE Y MÉDICOS ASIGNADOS
+            const [pacienteResult] = await db.query(`
+                SELECT 
+                    p.primer_nombre,
+                    p.segundo_nombre,
+                    p.primer_apellido,
+                    p.segundo_apellido,
+                    p.cedula,
+                    p.edad, 
+                    p.fecha_nacimiento, 
+                    p.sexo AS genero,
+                    p.telefono_celular,
+                    tp.tipo_operacion AS procedimiento,
+                    s.medico_id,
+                    s.ayudante_medico_uno_id,
+                    s.ayudante_medico_dos_id,
+                    TRIM(REPLACE(CONCAT_WS(' ', m.primerNombre, m.segundoNombre, m.primerApellido, m.segundoApellido), '  ', ' ')) AS nombre_medico,
+                    TRIM(REPLACE(CONCAT_WS(' ', ay1.primerNombre, ay1.segundoNombre, ay1.primerApellido, ay1.segundoApellido), '  ', ' ')) AS nombre_ayudante_uno,
+                    TRIM(REPLACE(CONCAT_WS(' ', ay2.primerNombre, ay2.segundoNombre, ay2.primerApellido, ay2.segundoApellido), '  ', ' ')) AS nombre_ayudante_dos
+                FROM registrar_solicitud_pacientes s
+                INNER JOIN pacientes p ON s.paciente_id = p.id
+                LEFT JOIN tipo_operaciones tp ON s.tipo_operacion_id = tp.id
+                LEFT JOIN registro_medicos m ON s.medico_id = m.id
+                LEFT JOIN registro_medicos ay1 ON s.ayudante_medico_uno_id = ay1.id
+                LEFT JOIN registro_medicos ay2 ON s.ayudante_medico_dos_id = ay2.id
+                WHERE s.id = ? LIMIT 1
+            `, [solicitud_id]);
+
+            const pacienteData = pacienteResult[0] || {};
+
+            // 1. OBTENER MAESTRO TERAPÉUTICO
+            const [terapeuticoResult] = await db.query(`
+                SELECT 
+                    t.*,
+                    tec.nombre AS tecnica_cateterismo,
+                    comp_acc.nombre AS complicaciones_acceso_nombre,
+                    sug.nombre AS sugerencia_terapeutica,
+                    terr.nombre AS territorio_angioplastia
+                FROM cateterismo_terapeutico_hemodinamia t
+                LEFT JOIN catalogo_hemodinamia tec ON t.tecnica_cateterismo_terapeutico_id = tec.id
+                LEFT JOIN catalogo_hemodinamia comp_acc ON t.complicaciones_acceso_terapeutico = comp_acc.id
+                LEFT JOIN catalogo_hemodinamia sug ON t.sugerencia_terapeuticas_id = sug.id
+                LEFT JOIN catalogo_hemodinamia terr ON t.territorio_angioplastia_id = terr.id
+                WHERE t.solicitud_paciente_id = ? LIMIT 1
+            `, [solicitud_id]);
+
+            let terapeuticoMaster = terapeuticoResult[0] || null;
+            let arteriasDetalle = [];
+
+            if (terapeuticoMaster) {
+                // 2. ARTERIAS TRATADAS
+                const [detalleResult] = await db.query(`
+                    SELECT 
+                        a.*,
+                        flu.nombre AS flujo_nombre
+                    FROM cateterismo_terapeutico_detalle_arterias a
+                    LEFT JOIN catalogo_hemodinamia flu ON a.flujo_hemodinamia = flu.id
+                    WHERE a.terapeutico_id = ?
+                `, [terapeuticoMaster.id]);
+
+                // Recolectar IDs de catálogos para tipo_json_hemodinamia, intervenciones y complicaciones
+                let idsToFetch = new Set();
+                const addId = (id) => { if (id && !isNaN(id)) idsToFetch.add(Number(id)); };
+                const parseAndExtractIds = (jsonString) => {
+                    if (!jsonString) return [];
+                    try {
+                        const arr = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+                        if (Array.isArray(arr)) {
+                            arr.forEach(addId);
+                            return arr;
+                        }
+                    } catch (e) { return []; }
+                    return [];
+                };
+
+                const intervencionesIds = parseAndExtractIds(terapeuticoMaster.intervencion_realizada_id);
+                const complicacionesProcIds = parseAndExtractIds(terapeuticoMaster.complicaciones_procedimiento_terapeutico);
+
+                const arteriasConTipos = detalleResult.map(art => {
+                    const tipos_ids = parseAndExtractIds(art.tipo_json_hemodinamia);
+                    return { ...art, tipos_ids };
+                });
+
+                let catalogosMap = {};
+                if (idsToFetch.size > 0) {
+                    const [catRows] = await db.query(
+                        'SELECT id, nombre FROM catalogo_hemodinamia WHERE id IN (?)',
+                        [[...idsToFetch]]
+                    );
+                    catRows.forEach(c => { catalogosMap[c.id] = c.nombre; });
+                }
+
+                terapeuticoMaster.intervenciones_realizadas = intervencionesIds.map(id => catalogosMap[id] || id);
+                terapeuticoMaster.complicaciones_procedimiento = complicacionesProcIds.map(id => catalogosMap[id] || id);
+
+                arteriasDetalle = arteriasConTipos.map(art => ({
+                    arteria_nombre: art.arteria_nombre,
+                    tecnica: art.tecnica_hemodinamia || '',
+                    medina: art.medina_hemodinamia || '',
+                    lesion_residual: art.lesion_residual_hemodinamia || '',
+                    flujo: art.flujo_nombre || (catalogosMap[art.flujo_hemodinamia] || art.flujo_hemodinamia || ''),
+                    tipos_lesion: (art.tipos_ids || []).map(id => catalogosMap[id] || id)
+                }));
+            }
+
+            // 3. EXAMEN FÍSICO Y SIGNOS VITALES
+            const [fisicoLabsResult] = await db.query(`
+                SELECT peso, talla, fc, fr, ta
+                FROM examen_fisico_hemodinamia
+                WHERE solicitud_paciente_id = ? LIMIT 1
+            `, [solicitud_id]);
+
+            const fisicoData = fisicoLabsResult[0] || {};
+
+            res.json({
+                success: true,
+                data: {
+                    medico_asignado: pacienteData.nombre_medico || 'No asignado',
+                    ayudante_medico_uno_nombre: pacienteData.nombre_ayudante_uno || '',
+                    ayudante_medico_dos_nombre: pacienteData.nombre_ayudante_dos || '',
+                    paciente: {
+                        primer_nombre: pacienteData.primer_nombre,
+                        segundo_nombre: pacienteData.segundo_nombre,
+                        primer_apellido: pacienteData.primer_apellido,
+                        segundo_apellido: pacienteData.segundo_apellido,
+                        cedula: pacienteData.cedula,
+                        edad: pacienteData.edad,
+                        fecha_nacimiento: pacienteData.fecha_nacimiento,
+                        genero: pacienteData.genero,
+                        telefono_celular: pacienteData.telefono_celular,
+                        historia: pacienteData.historia,
+                        procedimiento: pacienteData.procedimiento
+                    },
+                    terapeutico: terapeuticoMaster ? {
+                        ...terapeuticoMaster,
+                        arterias: arteriasDetalle
+                    } : null,
+                    examen_fisico_laboratorios: {
+                        signos_vitales: {
+                            peso: fisicoData.peso,
+                            talla: fisicoData.talla,
+                            fc: fisicoData.fc,
+                            fr: fisicoData.fr,
+                            ta: fisicoData.ta
+                        }
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error("Error en reporteCateterismoTerapeutico:", error);
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    },
+
 
 
 
@@ -1092,6 +1261,48 @@ getIndicadoresReportes: async (req, res) => {
             GROUP BY rsp.estatus_solicitud_id, es.nombre_estatus
         `;
 
+        // Reporte de Estatus para Pacientes de Marcapasos
+        const queryEstatusMarcapasos = `
+            SELECT 
+                COALESCE(es.nombre_estatus, 'Sin Estatus') AS etiqueta, 
+                COUNT(rsp.id) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN tipo_operaciones tp ON rsp.tipo_operacion_id = tp.id
+            LEFT JOIN estatus_solicitudes es ON rsp.estatus_solicitud_id = es.id
+            LEFT JOIN pacientes p ON rsp.paciente_id = p.id
+            ${filterSolicitudes} AND LOWER(tp.tipo_operacion) LIKE '%marcapaso%'
+            GROUP BY rsp.estatus_solicitud_id, es.nombre_estatus
+            ORDER BY total DESC
+        `;
+
+        // Reporte de Estatus para Pacientes con Hemodinamia
+        const queryEstatusHemodinamia = `
+            SELECT 
+                COALESCE(es.nombre_estatus, 'Sin Estatus') AS etiqueta, 
+                COUNT(rsp.id) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN tipo_operaciones tp ON rsp.tipo_operacion_id = tp.id
+            LEFT JOIN estatus_solicitudes es ON rsp.estatus_solicitud_id = es.id
+            LEFT JOIN pacientes p ON rsp.paciente_id = p.id
+            ${filterSolicitudes} AND LOWER(tp.tipo_operacion) LIKE '%hemodinamia%'
+            GROUP BY rsp.estatus_solicitud_id, es.nombre_estatus
+            ORDER BY total DESC
+        `;
+
+        // Reporte de Estatus para Marcapasos Implantados
+        const queryEstatusMarcapasosImplantados = `
+            SELECT 
+                COALESCE(es.nombre_estatus, 'Sin Estatus') AS etiqueta, 
+                COUNT(rsp.id) AS total 
+            FROM registrar_solicitud_pacientes rsp
+            INNER JOIN tipo_marca_pasos tmp ON rsp.tipo_marca_paso_id = tmp.id
+            LEFT JOIN estatus_solicitudes es ON rsp.estatus_solicitud_id = es.id
+            LEFT JOIN pacientes p ON rsp.paciente_id = p.id
+            ${filterSolicitudes}
+            GROUP BY rsp.estatus_solicitud_id, es.nombre_estatus
+            ORDER BY total DESC
+        `;
+
         // Reporte de Marcapasos Implantados agrupados por tipo
         const queryMarcapasosImplantados = `
             SELECT 
@@ -1117,7 +1328,10 @@ getIndicadoresReportes: async (req, res) => {
             [resGeog],
             [resCentros],
             [resEstatus],
-            [resMarcapasosImplantados]
+            [resMarcapasosImplantados],
+            [resEstatusMarcapasos],
+            [resEstatusHemodinamia],
+            [resEstatusMarcapasosImplantados]
         ] = await Promise.all([
             db.query(queryConsultas, paramsConsultas),
             db.query(querySolicitudes, paramsSolicitudes),
@@ -1127,7 +1341,10 @@ getIndicadoresReportes: async (req, res) => {
             db.query(queryGeog, [...paramsSolicitudes]),
             db.query(queryCentros, [...paramsSolicitudes]),
             db.query(queryEstatus, [...paramsSolicitudes]),
-            db.query(queryMarcapasosImplantados, [...paramsSolicitudes])
+            db.query(queryMarcapasosImplantados, [...paramsSolicitudes]),
+            db.query(queryEstatusMarcapasos, [...paramsSolicitudes]),
+            db.query(queryEstatusHemodinamia, [...paramsSolicitudes]),
+            db.query(queryEstatusMarcapasosImplantados, [...paramsSolicitudes])
         ]);
 
         const total_marcapasos = resProc
@@ -1152,6 +1369,18 @@ getIndicadoresReportes: async (req, res) => {
                 total_hemodinamia: Number(total_hemodinamia),
                 total_marcapasos_implantados: Number(total_marcapasos_implantados),
                 marcapasos_implantados_detalles: resMarcapasosImplantados.map(row => ({
+                    etiqueta: row.etiqueta,
+                    total: Number(row.total || 0)
+                })),
+                marcapasos_por_estatus: resEstatusMarcapasos.map(row => ({
+                    etiqueta: row.etiqueta,
+                    total: Number(row.total || 0)
+                })),
+                marcapasos_implantados_por_estatus: resEstatusMarcapasosImplantados.map(row => ({
+                    etiqueta: row.etiqueta,
+                    total: Number(row.total || 0)
+                })),
+                hemodinamia_por_estatus: resEstatusHemodinamia.map(row => ({
                     etiqueta: row.etiqueta,
                     total: Number(row.total || 0)
                 })),

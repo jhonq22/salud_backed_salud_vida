@@ -374,6 +374,13 @@ const getConsultasConEtapas = async (req, res) => {
                     ELSE 'Solo Registro'
                 END AS etapa_actual,
 
+                -- Tipo de consulta (Cita, Control o Cateterismo Terapéutico)
+                CASE 
+                    WHEN cm.cateterismo = 1 THEN 'Cateterismo Terapéutico'
+                    WHEN cm.motivo_consulta_id IS NOT NULL THEN 'Control'
+                    ELSE 'Cita'
+                END AS tipo_consulta,
+
                 pe.id AS primera_etapa_id,
                 se.id AS segunda_etapa_id
                 
