@@ -109,7 +109,7 @@ const confirmarCitas = async (req, res) => {
 
             if (tipoOp === 'MARCAPASO' || tipoOp === 'MARCAPASOS') {
                 valorMarcapaso = 1;
-                tipoOperacionId = 1;
+                tipoOperacionId = 4; // Marcapasos genérico (proceso inicial)
             } else if (tipoOp === 'CATETERISMO' || tipoOp === 'HEMODINAMIA') {
                 valorMarcapaso = 0;
                 tipoOperacionId = 2;

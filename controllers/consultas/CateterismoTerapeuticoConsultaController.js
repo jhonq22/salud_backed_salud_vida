@@ -10,7 +10,7 @@ const db = require('../../config/db');
  * GUARDAR O ACTUALIZAR CATETERISMO TERAPÉUTICO (UPSERT MAESTRO-DETALLE)
  */
 const saveTerapeutico = async (req, res) => {
-    const { consulta_medica_id, arterias_terapeuticas } = req.body;
+    const { consulta_medica_id, arterias_terapeuticas, observaciones_generales } = req.body;
 
     if (!consulta_medica_id) {
         return res.status(400).json({ message: "El consulta_medica_id es obligatorio" });
@@ -26,11 +26,11 @@ const saveTerapeutico = async (req, res) => {
         let terapeuticoId;
 
         if (exist.length > 0) {
-            // 2. Si existe, actualizamos la fecha del maestro
+            // 2. Si existe, actualizamos la fecha del maestro y observaciones_generales
             terapeuticoId = exist[0].id;
             await db.query(
-                'UPDATE cateterismo_terapeutico_consulta SET fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?',
-                [terapeuticoId]
+                'UPDATE cateterismo_terapeutico_consulta SET observaciones_generales = ?, fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?',
+                [observaciones_generales !== undefined ? (observaciones_generales || null) : null, terapeuticoId]
             );
 
             // 3. Limpiamos el detalle anterior (borramos las arterias viejas para insertar las nuevas)
@@ -41,8 +41,8 @@ const saveTerapeutico = async (req, res) => {
         } else {
             // 4. Si no existe, creamos el maestro
             const [result] = await db.query(
-                'INSERT INTO cateterismo_terapeutico_consulta (consulta_medica_id) VALUES (?)',
-                [consulta_medica_id]
+                'INSERT INTO cateterismo_terapeutico_consulta (consulta_medica_id, observaciones_generales) VALUES (?, ?)',
+                [consulta_medica_id, observaciones_generales || null]
             );
             terapeuticoId = result.insertId;
         }
@@ -86,12 +86,12 @@ const getTerapeuticoBySolicitud = async (req, res) => {
     try {
         // Obtenemos el maestro
         const [maestro] = await db.query(
-            'SELECT id, consulta_medica_id FROM cateterismo_terapeutico_consulta WHERE consulta_medica_id = ?',
+            'SELECT id, consulta_medica_id, observaciones_generales FROM cateterismo_terapeutico_consulta WHERE consulta_medica_id = ?',
             [consulta_medica_id]
         );
 
         if (maestro.length === 0) {
-            return res.json({ arterias_terapeuticas: [] }); // Retorna vacío si no hay datos
+            return res.json({ arterias_terapeuticas: [], observaciones_generales: '' }); // Retorna vacío si no hay datos
         }
 
         const terapeuticoId = maestro[0].id;
@@ -111,6 +111,7 @@ const getTerapeuticoBySolicitud = async (req, res) => {
         res.json({
             id: terapeuticoId,
             consulta_medica_id: maestro[0].consulta_medica_id,
+            observaciones_generales: maestro[0].observaciones_generales || '',
             arterias_terapeuticas: arteriasFormateadas
         });
 
@@ -138,7 +139,8 @@ const saveTerapeuticoGeneral = async (req, res) => {
         complicaciones_procedimiento_terapeutico, // Este es Array/JSON
         complicaciones_acceso_terapeutico, // Este es INT
         sugerencia_terapeuticas_id,
-        territorio_angioplastia_id
+        territorio_angioplastia_id,
+        observaciones_generales
     } = req.body;
 
     if (!consulta_medica_id) {
@@ -157,33 +159,40 @@ const saveTerapeuticoGeneral = async (req, res) => {
 
         if (exist.length > 0) {
             // Si el padre ya existe, actualizamos solo estos campos
-            await db.query(
-                `UPDATE cateterismo_terapeutico_consulta SET 
-                    tecnica_cateterismo_terapeutico_id = ?, 
-                    intervencion_realizada_id = ?, 
-                    complicaciones_procedimiento_terapeutico = ?, 
-                    complicaciones_acceso_terapeutico = ?, 
-                    sugerencia_terapeuticas_id = ?,
-                    territorio_angioplastia_id = ?,
-                    fecha_actualizacion = CURRENT_TIMESTAMP
-                WHERE consulta_medica_id = ?`,
-                [
-                    tecnica_cateterismo_terapeutico_id || null,
-                    intervencionJson,
-                    compProcedimientoJson, // <-- JSON Stringificado
-                    complicaciones_acceso_terapeutico || null, // <-- INT Directo
-                    sugerencia_terapeuticas_id || null,
-                    territorio_angioplastia_id || null,
-                    consulta_medica_id
-                ]
-            );
+            let queryUpdate = `UPDATE cateterismo_terapeutico_consulta SET 
+                tecnica_cateterismo_terapeutico_id = ?, 
+                intervencion_realizada_id = ?, 
+                complicaciones_procedimiento_terapeutico = ?, 
+                complicaciones_acceso_terapeutico = ?, 
+                sugerencia_terapeuticas_id = ?,
+                territorio_angioplastia_id = ?,
+                fecha_actualizacion = CURRENT_TIMESTAMP`;
+            
+            const paramsUpdate = [
+                tecnica_cateterismo_terapeutico_id || null,
+                intervencionJson,
+                compProcedimientoJson,
+                complicaciones_acceso_terapeutico || null,
+                sugerencia_terapeuticas_id || null,
+                territorio_angioplastia_id || null
+            ];
+
+            if (observaciones_generales !== undefined) {
+                queryUpdate += `, observaciones_generales = ?`;
+                paramsUpdate.push(observaciones_generales || null);
+            }
+
+            queryUpdate += ` WHERE consulta_medica_id = ?`;
+            paramsUpdate.push(consulta_medica_id);
+
+            await db.query(queryUpdate, paramsUpdate);
             return res.status(200).json({ message: 'Datos generales terapéuticos actualizados con éxito' });
         } else {
             // Si el padre NO existe, lo creamos con estos campos
             await db.query(
                 `INSERT INTO cateterismo_terapeutico_consulta 
-                (consulta_medica_id, tecnica_cateterismo_terapeutico_id, intervencion_realizada_id, complicaciones_procedimiento_terapeutico, complicaciones_acceso_terapeutico, sugerencia_terapeuticas_id, territorio_angioplastia_id) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                (consulta_medica_id, tecnica_cateterismo_terapeutico_id, intervencion_realizada_id, complicaciones_procedimiento_terapeutico, complicaciones_acceso_terapeutico, sugerencia_terapeuticas_id, territorio_angioplastia_id, observaciones_generales) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     consulta_medica_id,
                     tecnica_cateterismo_terapeutico_id || null,
@@ -191,7 +200,8 @@ const saveTerapeuticoGeneral = async (req, res) => {
                     compProcedimientoJson, // <-- JSON Stringificado
                     complicaciones_acceso_terapeutico || null, // <-- INT Directo
                     sugerencia_terapeuticas_id || null,
-                    territorio_angioplastia_id || null
+                    territorio_angioplastia_id || null,
+                    observaciones_generales || null
                 ]
             );
             return res.status(201).json({ message: 'Datos generales terapéuticos guardados con éxito' });
@@ -214,7 +224,8 @@ const getTerapeuticoGeneralBySolicitud = async (req, res) => {
         const [maestro] = await db.query(
             `SELECT id, consulta_medica_id, tecnica_cateterismo_terapeutico_id, 
                     intervencion_realizada_id, complicaciones_procedimiento_terapeutico, 
-                    complicaciones_acceso_terapeutico, sugerencia_terapeuticas_id, territorio_angioplastia_id 
+                    complicaciones_acceso_terapeutico, sugerencia_terapeuticas_id, territorio_angioplastia_id,
+                    observaciones_generales 
              FROM cateterismo_terapeutico_consulta 
              WHERE consulta_medica_id = ?`,
             [consulta_medica_id]
@@ -290,6 +301,7 @@ const getReporteTerapeutico = async (req, res) => {
                 t.complicaciones_acceso_terapeutico,
                 t.sugerencia_terapeuticas_id,
                 t.territorio_angioplastia_id,
+                t.observaciones_generales,
                 t.fecha_creacion
             FROM consultas_medicas c
             LEFT JOIN pacientes p ON c.paciente_id = p.id

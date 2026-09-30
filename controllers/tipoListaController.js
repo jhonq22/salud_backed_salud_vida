@@ -56,7 +56,7 @@ const getEstatusSolicitudes = async (req, res) => {
 const getTipoOperaciones = async (req, res) => {
     try {
         const [rows] = await db.query(
-            'SELECT tipo_operacion as label, id as value FROM tipo_operaciones WHERE estatus = 1'
+            'SELECT tipo_operacion as label, id as value FROM tipo_operaciones WHERE estatus = 1 AND id != 4'
         );
         res.json(rows);
     } catch (error) {

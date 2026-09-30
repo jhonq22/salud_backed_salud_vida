@@ -518,10 +518,21 @@ reporteCaterismo: async (req, res) => {
             // 0. OBTENER DATOS DEL PACIENTE Y MÉDICO ASIGNADO
             const [pacienteResult] = await db.query(`
                 SELECT 
+                    p.primer_nombre,
+                    p.segundo_nombre,
+                    p.primer_apellido,
+                    p.segundo_apellido,
+                    p.cedula,
                     p.edad, 
                     p.fecha_nacimiento, 
-                    p.sexo AS genero,
+                    CASE 
+                        WHEN p.sexo = 1 OR p.sexo = '1' OR UPPER(p.sexo) = 'M' THEN 'Masculino'
+                        WHEN p.sexo = 2 OR p.sexo = '2' OR UPPER(p.sexo) = 'F' THEN 'Femenino'
+                        ELSE p.sexo
+                    END AS genero,
                     p.telefono_celular,
+                    p.codificacion_buen_gobierno,
+                    ind.diagnostico,
                     s.medico_id,
                     s.ayudante_medico_uno_id,
                     s.ayudante_medico_dos_id,
@@ -530,6 +541,7 @@ reporteCaterismo: async (req, res) => {
                     TRIM(REPLACE(CONCAT_WS(' ', ay2.primerNombre, ay2.segundoNombre, ay2.primerApellido, ay2.segundoApellido), '  ', ' ')) AS nombre_ayudante_dos
                 FROM registrar_solicitud_pacientes s
                 INNER JOIN pacientes p ON s.paciente_id = p.id
+                LEFT JOIN indicaciones_implante_nuevos ind ON s.id = ind.solicitud_paciente_id
                 LEFT JOIN registro_medicos m ON s.medico_id = m.id
                 LEFT JOIN registro_medicos ay1 ON s.ayudante_medico_uno_id = ay1.id
                 LEFT JOIN registro_medicos ay2 ON s.ayudante_medico_dos_id = ay2.id
@@ -650,13 +662,22 @@ reporteCaterismo: async (req, res) => {
                 ayudante_medico_uno_nombre: pacienteData.nombre_ayudante_uno || '',
                 ayudante_medico_dos_nombre: pacienteData.nombre_ayudante_dos || '',
                 paciente: {
+                    primer_nombre: pacienteData.primer_nombre,
+                    segundo_nombre: pacienteData.segundo_nombre,
+                    primer_apellido: pacienteData.primer_apellido,
+                    segundo_apellido: pacienteData.segundo_apellido,
+                    cedula: pacienteData.cedula,
                     edad: pacienteData.edad,
                     fecha_nacimiento: pacienteData.fecha_nacimiento,
                     genero: pacienteData.genero,
-                    telefono_celular: pacienteData.telefono_celular 
+                    telefono_celular: pacienteData.telefono_celular,
+                    codificacion_buen_gobierno: pacienteData.codificacion_buen_gobierno,
+                    historia: pacienteData.codificacion_buen_gobierno,
+                    diagnostico: pacienteData.diagnostico
                 },
                 cateterismo: cateterismoMaster ? {
                     ...cateterismoMaster,
+                    diagnostico_referencia: cateterismoMaster.diagnostico_referencia || pacienteData.diagnostico || '',
                     arterias: arteriasDetalle
                 } : null,
 
@@ -707,8 +728,13 @@ reporteCaterismo: async (req, res) => {
                     p.cedula,
                     p.edad, 
                     p.fecha_nacimiento, 
-                    p.sexo AS genero,
+                    CASE 
+                        WHEN p.sexo = 1 OR p.sexo = '1' OR UPPER(p.sexo) = 'M' THEN 'Masculino'
+                        WHEN p.sexo = 2 OR p.sexo = '2' OR UPPER(p.sexo) = 'F' THEN 'Femenino'
+                        ELSE p.sexo
+                    END AS genero,
                     p.telefono_celular,
+                    p.codificacion_buen_gobierno,
                     tp.tipo_operacion AS procedimiento,
                     s.medico_id,
                     s.ayudante_medico_uno_id,
@@ -827,7 +853,8 @@ reporteCaterismo: async (req, res) => {
                         fecha_nacimiento: pacienteData.fecha_nacimiento,
                         genero: pacienteData.genero,
                         telefono_celular: pacienteData.telefono_celular,
-                        historia: pacienteData.historia,
+                        codificacion_buen_gobierno: pacienteData.codificacion_buen_gobierno,
+                        historia: pacienteData.codificacion_buen_gobierno || pacienteData.historia || '',
                         procedimiento: pacienteData.procedimiento
                     },
                     terapeutico: terapeuticoMaster ? {
