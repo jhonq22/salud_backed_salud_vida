@@ -422,6 +422,93 @@ const getConsultasConEtapas = async (req, res) => {
     }
 };
 
+const getConsultasConEtapasPorCentro = async (req, res) => {
+    try {
+        const { centro_salud_id } = req.params;
+        const { fecha_inicio, fecha_fin, cateterismo } = req.query;
+
+        if (!centro_salud_id) {
+            return res.status(400).json({ error: "El centro_salud_id es requerido." });
+        }
+
+        let query = `
+            SELECT 
+                cm.id AS consulta_medica_id,
+                cm.paciente_id,
+                cm.fecha_consulta,
+                cm.estatus,
+                cm.cateterismo,
+                t.nombre AS motivo_consulta, 
+                
+                -- Datos del paciente
+                p.cedula,
+                p.es_cedulado,
+                p.primer_nombre,
+                p.segundo_nombre,
+                p.primer_apellido,
+                p.segundo_apellido,
+                p.sexo,
+                p.fecha_nacimiento,
+                CONCAT_WS(' ', NULLIF(p.primer_nombre, ''), NULLIF(p.segundo_nombre, ''), NULLIF(p.primer_apellido, ''), NULLIF(p.segundo_apellido, '')) AS paciente_nombre_completo,
+                
+                -- Evaluamos en qué etapa está
+                CASE 
+                    WHEN se.id IS NOT NULL THEN 'Segunda Etapa'
+                    WHEN pe.id IS NOT NULL THEN 'Primera Etapa'
+                    ELSE 'Solo Registro'
+                END AS etapa_actual,
+
+                -- Tipo de consulta (Cita, Control o Cateterismo Terapéutico)
+                CASE 
+                    WHEN cm.cateterismo = 1 THEN 'Cateterismo Terapéutico'
+                    WHEN cm.motivo_consulta_id IS NOT NULL THEN 'Control'
+                    ELSE 'Cita'
+                END AS tipo_consulta,
+
+                pe.id AS primera_etapa_id,
+                se.id AS segunda_etapa_id
+                
+            FROM consultas_medicas cm
+            INNER JOIN registrar_solicitud_pacientes rsp ON rsp.id = (
+                SELECT id FROM registrar_solicitud_pacientes 
+                WHERE paciente_id = cm.paciente_id 
+                ORDER BY id DESC LIMIT 1
+            )
+            LEFT JOIN catalogo_consultas t ON cm.motivo_consulta_id = t.id 
+            LEFT JOIN pacientes p ON cm.paciente_id = p.id
+            LEFT JOIN test_seatle_primera_etapa_consulta pe ON cm.id = pe.consultas_medica_id
+            LEFT JOIN test_seatle_segunda_etapa_consulta se ON cm.id = se.consultas_medica_id
+            WHERE rsp.centro_salud_id = ?
+        `;
+
+        const queryParams = [centro_salud_id];
+
+        if (cateterismo !== undefined && cateterismo !== null) {
+            query += ` AND cm.cateterismo = ?`;
+            queryParams.push(cateterismo);
+        }
+
+        if (fecha_inicio) {
+            query += ` AND DATE(cm.fecha_consulta) >= ?`;
+            queryParams.push(fecha_inicio);
+        }
+
+        if (fecha_fin) {
+            query += ` AND DATE(cm.fecha_consulta) <= ?`;
+            queryParams.push(fecha_fin);
+        }
+
+        query += ` ORDER BY cm.fecha_creacion DESC`;
+
+        const [rows] = await db.query(query, queryParams);
+
+        return res.status(200).json(rows);
+    } catch (error) {
+        console.error("Error al obtener la lista de consultas por centro:", error);
+        return res.status(500).json({ error: error.message });
+    }
+};
+
 
 
 
@@ -620,8 +707,7 @@ module.exports = {
     savePrimeraEtapa, getPrimeraEtapaByConsultaId,
     saveSegundaEtapa, getSegundaEtapaByConsultaId,
     buscarCedulaConsultas, lista_por_tipo, getConsultasConEtapas,
+    getConsultasConEtapasPorCentro,
     getReportePrimeraEtapa,
     getReporteSegundaEtapa
-
-
 };

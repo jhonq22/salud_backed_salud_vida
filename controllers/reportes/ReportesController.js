@@ -949,6 +949,35 @@ reporteCaterismo: async (req, res) => {
                 GROUP BY t.id LIMIT 1;
             `, [solicitud_id]);
 
+            let tecnicaData = tecnicaResult[0] || null;
+            if (tecnicaData && tecnicaData.otros_lugar_estimulacion) {
+                try {
+                    const parsedDetalles = JSON.parse(tecnicaData.otros_lugar_estimulacion);
+                    if (Array.isArray(parsedDetalles) && parsedDetalles.length > 0 && parsedDetalles[0].electrodo_id !== undefined) {
+                        const [allLugares] = await db.query('SELECT id, descripcion FROM lista_lugar_estimulacion_tecnica_procedimiento');
+                        const lugaresMap = new Map(allLugares.map(l => [l.id, l.descripcion]));
+
+                        const formattedLugares = parsedDetalles.map(d => {
+                            const lugId = typeof d.lugar_estimulacion_id === 'object' ? d.lugar_estimulacion_id?.value : d.lugar_estimulacion_id;
+                            const lugarNombre = lugaresMap.get(lugId) || (typeof d.lugar_estimulacion_id === 'object' ? d.lugar_estimulacion_id?.label : d.lugar_estimulacion_id) || 'N/A';
+                            let extra = '';
+                            if (d.tamano_septum) {
+                                const nivel = typeof d.tamano_septum === 'object' ? d.tamano_septum.value : d.tamano_septum;
+                                extra = ` (${nivel})`;
+                            } else if (d.otros_lugar_estimulacion) {
+                                extra = ` (${d.otros_lugar_estimulacion})`;
+                            }
+                            return `${d.electrodo_nombre || 'Electrodo'}: ${lugarNombre}${extra}`;
+                        });
+
+                        tecnicaData.lugar_estimulacion = formattedLugares.join(' | ');
+                        tecnicaData.otros_lugar_estimulacion = null;
+                    }
+                } catch (e) {
+                    // Si no es un array JSON estructurado, se mantiene el valor original
+                }
+            }
+
             // 3. COMPLICACIONES Y EGRESO
             const [complicacionesResult] = await db.query(`
                 SELECT 
@@ -969,7 +998,7 @@ reporteCaterismo: async (req, res) => {
 
             // 4. CONSTRUCCIÓN DEL JSON FINAL
             const reporte_marcapasos_completo = {
-                tecnica_procedimiento: tecnicaResult[0] || null,
+                tecnica_procedimiento: tecnicaData,
                 implantacion: implantacionResult[0] || null,
                 complicaciones_y_egreso: complicacionesResult[0] || null
             };
@@ -995,8 +1024,101 @@ reporteCaterismo: async (req, res) => {
      */
 getEstadisticasDashboard: async (req, res) => {
         try {
+            // 1. Procedimientos por Centro Hospitalario (Hemodinamia vs Marcapasos)
+            const [procRows] = await db.query(`
+                SELECT 
+                    cs.id AS centro_id,
+                    cs.descripcion AS centro_nombre,
+                    SUM(CASE WHEN rs.tipo_operacion_id = 2 THEN 1 ELSE 0 END) AS hemodinamia,
+                    SUM(CASE WHEN rs.tipo_operacion_id IN (1, 3, 4) THEN 1 ELSE 0 END) AS marcapasos,
+                    COUNT(rs.id) AS total
+                FROM lista_centro_salud cs
+                INNER JOIN registrar_solicitud_pacientes rs ON cs.id = rs.centro_salud_id
+                WHERE cs.estatus = 1
+                GROUP BY cs.id, cs.descripcion
+                ORDER BY cs.descripcion ASC
+            `);
+
+            let totalHemodinamia = 0;
+            let totalMarcapasos = 0;
+            let totalProcedimientos = 0;
+
+            const procedimientosPorCentro = procRows.map(row => {
+                const hemo = Number(row.hemodinamia) || 0;
+                const marca = Number(row.marcapasos) || 0;
+                const tot = Number(row.total) || (hemo + marca);
+                totalHemodinamia += hemo;
+                totalMarcapasos += marca;
+                totalProcedimientos += tot;
+
+                return {
+                    centro_id: row.centro_id,
+                    centro_nombre: row.centro_nombre,
+                    hemodinamia: hemo,
+                    marcapasos: marca,
+                    total: tot
+                };
+            });
+
+            // 2. Estatus por Centro Hospitalario
+            const [estatusRows] = await db.query(`
+                SELECT 
+                    cs.id AS centro_id,
+                    cs.descripcion AS centro_nombre,
+                    SUM(CASE WHEN rs.estatus_solicitud_id = 8 THEN 1 ELSE 0 END) AS actualizacion_datos,
+                    SUM(CASE WHEN rs.estatus_solicitud_id = 1 THEN 1 ELSE 0 END) AS en_consulta,
+                    SUM(CASE WHEN rs.estatus_solicitud_id = 3 THEN 1 ELSE 0 END) AS operado,
+                    SUM(CASE WHEN rs.estatus_solicitud_id = 6 THEN 1 ELSE 0 END) AS por_intervenir,
+                    SUM(CASE WHEN rs.estatus_solicitud_id = 5 THEN 1 ELSE 0 END) AS reasignar_cita,
+                    SUM(CASE WHEN rs.estatus_solicitud_id = 4 THEN 1 ELSE 0 END) AS rechazado,
+                    COUNT(rs.id) AS total
+                FROM lista_centro_salud cs
+                INNER JOIN registrar_solicitud_pacientes rs ON cs.id = rs.centro_salud_id
+                WHERE cs.estatus = 1
+                GROUP BY cs.id, cs.descripcion
+                ORDER BY cs.descripcion ASC
+            `);
+
+            let totalActualizacion = 0;
+            let totalEnConsulta = 0;
+            let totalOperado = 0;
+            let totalPorIntervenir = 0;
+            let totalReasignar = 0;
+            let totalRechazado = 0;
+            let totalEstatus = 0;
+
+            const estatusPorCentro = estatusRows.map(row => {
+                const act = Number(row.actualizacion_datos) || 0;
+                const cons = Number(row.en_consulta) || 0;
+                const op = Number(row.operado) || 0;
+                const pi = Number(row.por_intervenir) || 0;
+                const rea = Number(row.reasignar_cita) || 0;
+                const rech = Number(row.rechazado) || 0;
+                const tot = Number(row.total) || (act + cons + op + pi + rea + rech);
+
+                totalActualizacion += act;
+                totalEnConsulta += cons;
+                totalOperado += op;
+                totalPorIntervenir += pi;
+                totalReasignar += rea;
+                totalRechazado += rech;
+                totalEstatus += tot;
+
+                return {
+                    centro_id: row.centro_id,
+                    centro_nombre: row.centro_nombre,
+                    actualizacion_datos: act,
+                    en_consulta: cons,
+                    operado: op,
+                    por_intervenir: pi,
+                    reasignar_cita: rea,
+                    rechazado: rech,
+                    total: tot
+                };
+            });
+
+            // Consultas previas por compatibilidad
             const consultas = [
-                // 1. Solicitudes por Estatus
                 db.query(`
                     SELECT 
                         COALESCE(es.nombre_estatus, 'Sin Estatus') AS etiqueta, 
@@ -1005,21 +1127,17 @@ getEstadisticasDashboard: async (req, res) => {
                     LEFT JOIN estatus_solicitudes es ON rs.estatus_solicitud_id = es.id
                     GROUP BY rs.estatus_solicitud_id, es.nombre_estatus
                 `),
-
-                // 2. Género (Mapeo: 2 = Mujer, 1 o NULL = Hombre)
                 db.query(`
                     SELECT 
                         CASE 
                             WHEN p.sexo = '2' OR p.sexo = 2 THEN 'Mujer'
-                            ELSE 'Hombre' -- Esto cubre el 1, el NULL, y campos vacíos
+                            ELSE 'Hombre'
                         END AS etiqueta,
                         COUNT(rs.id) AS total 
                     FROM registrar_solicitud_pacientes rs
                     INNER JOIN pacientes p ON rs.paciente_id = p.id
                     GROUP BY etiqueta
                 `),
-
-                // 3. Distribución por Edades
                 db.query(`
                     SELECT 
                         CASE
@@ -1032,17 +1150,13 @@ getEstadisticasDashboard: async (req, res) => {
                     INNER JOIN pacientes p ON rs.paciente_id = p.id
                     GROUP BY etiqueta
                 `),
-
-                // 4. ¿Requiere Marcapaso?
                 db.query(`
                     SELECT 
-                        IF(rs.tipo_operacion_id IN (1, 3), 'Con Marcapaso', 'Sin Marcapaso') AS etiqueta, 
+                        IF(rs.tipo_operacion_id IN (1, 3, 4), 'Con Marcapaso', 'Sin Marcapaso') AS etiqueta, 
                         COUNT(rs.id) AS total 
                     FROM registrar_solicitud_pacientes rs
                     GROUP BY etiqueta
                 `),
-
-                // 5. Histórico de registros (últimos 6 meses)
                 db.query(`
                     SELECT 
                         DATE_FORMAT(rs.fecha_creacion, '%b %Y') AS etiqueta, 
@@ -1055,7 +1169,7 @@ getEstadisticasDashboard: async (req, res) => {
             ];
 
             const [
-                [estatusRows], [generoRows], [edadRows], [marcapasoRows], [mensualRows]
+                [estatusPrevRows], [generoRows], [edadRows], [marcapasoRows], [mensualRows]
             ] = await Promise.all(consultas);
 
             const format = (rows) => ({
@@ -1066,7 +1180,29 @@ getEstadisticasDashboard: async (req, res) => {
             res.json({
                 success: true,
                 data: {
-                    porEstatus: format(estatusRows),
+                    // Nuevas estadísticas solicitadas (Tablas y Gráficos por Centro)
+                    procedimientos: {
+                        porCentro: procedimientosPorCentro,
+                        totales: {
+                            hemodinamia: totalHemodinamia,
+                            marcapasos: totalMarcapasos,
+                            total: totalProcedimientos
+                        }
+                    },
+                    estatus: {
+                        porCentro: estatusPorCentro,
+                        totales: {
+                            actualizacion_datos: totalActualizacion,
+                            en_consulta: totalEnConsulta,
+                            operado: totalOperado,
+                            por_intervenir: totalPorIntervenir,
+                            reasignar_cita: totalReasignar,
+                            rechazado: totalRechazado,
+                            total: totalEstatus
+                        }
+                    },
+                    // Campos previos
+                    porEstatus: format(estatusPrevRows),
                     porGenero: format(generoRows),
                     porEdad: format(edadRows),
                     porMarcapaso: format(marcapasoRows),
@@ -1075,7 +1211,7 @@ getEstadisticasDashboard: async (req, res) => {
             });
 
         } catch (error) {
-            console.error(error);
+            console.error("Error en getEstadisticasDashboard:", error);
             res.status(500).json({ success: false, error: error.message });
         }
     },

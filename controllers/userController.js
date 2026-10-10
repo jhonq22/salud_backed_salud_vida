@@ -33,6 +33,44 @@ const login = async (req, res) => {
             multiRolesArray = typeof user.roles_medico === 'string' ? JSON.parse(user.roles_medico) : user.roles_medico;
         }
 
+        // --- GESTIÓN DE CENTROS DE SALUD MÚLTIPLES ---
+        let centrosSaludIds = [];
+        if (user.centro_salud_id) {
+            if (typeof user.centro_salud_id === 'string') {
+                try {
+                    const parsed = JSON.parse(user.centro_salud_id);
+                    centrosSaludIds = Array.isArray(parsed) ? parsed : [parsed];
+                } catch (e) {
+                    centrosSaludIds = [user.centro_salud_id];
+                }
+            } else if (Array.isArray(user.centro_salud_id)) {
+                centrosSaludIds = user.centro_salud_id;
+            } else {
+                centrosSaludIds = [user.centro_salud_id];
+            }
+        }
+
+        centrosSaludIds = centrosSaludIds.map(id => Number(id)).filter(id => !isNaN(id) && id > 0);
+
+        let centrosSaludDetalle = [];
+        if (centrosSaludIds.length > 0) {
+            const [centrosRows] = await db.query(
+                `SELECT id, descripcion FROM lista_centro_salud WHERE id IN (?) AND estatus = 1`,
+                [centrosSaludIds]
+            );
+            centrosSaludDetalle = centrosRows;
+        }
+
+        // Determinar centro activo:
+        // Si tiene solo 1 hospital, se selecciona automáticamente ese ID.
+        // Si tiene 2 o más y es médico (rol 4), centroActivo se deja null para requerir selección
+        let centroActivo = null;
+        if (centrosSaludIds.length === 1) {
+            centroActivo = centrosSaludIds[0];
+        } else if (centrosSaludIds.length > 1 && user.rol_id !== 4) {
+            centroActivo = centrosSaludIds[0];
+        }
+
         // Generar Token
         const token = jwt.sign(
             {
@@ -40,7 +78,8 @@ const login = async (req, res) => {
                 rol: user.rol,
                 rol_id: user.rol_id,
                 idPaciente: idPaciente,
-                centro_salud_id: user.centro_salud_id,
+                centro_salud_id: centroActivo,
+                centros_salud: centrosSaludDetalle,
                 multi_roles: multiRolesArray,
                 marcapaso: Boolean(user.marcapaso),
                 hemodinamia: Boolean(user.hemodinamia)
@@ -60,10 +99,11 @@ const login = async (req, res) => {
                 rol: user.rol,
                 rol_id: user.rol_id,
                 idPaciente: idPaciente,
-                centro_salud_id: user.centro_salud_id,
+                centro_salud_id: centroActivo,
+                centros_salud: centrosSaludDetalle,
                 multi_roles: multiRolesArray,
-                marcapaso: Boolean(user.marcapaso),     // <--- Enviado al frontend
-                hemodinamia: Boolean(user.hemodinamia)  // <--- Enviado al frontend
+                marcapaso: Boolean(user.marcapaso),
+                hemodinamia: Boolean(user.hemodinamia)
             }
         });
     } catch (error) {
@@ -72,15 +112,34 @@ const login = async (req, res) => {
     }
 };
 
+// Helper para normalizar centro_salud_id a JSON String
+const normalizarCentroSalud = (centro_salud_id) => {
+    if (!centro_salud_id) return null;
+    let ids = [];
+    if (Array.isArray(centro_salud_id)) {
+        ids = centro_salud_id.map(c => (typeof c === 'object' && c !== null ? (c.value || c.id) : c));
+    } else if (typeof centro_salud_id === 'object' && centro_salud_id !== null) {
+        const single = centro_salud_id.value || centro_salud_id.id;
+        if (single) ids = [single];
+    } else if (typeof centro_salud_id === 'string' && centro_salud_id.startsWith('[')) {
+        return centro_salud_id;
+    } else {
+        ids = [centro_salud_id];
+    }
+    const cleanIds = ids.map(Number).filter(id => !isNaN(id) && id > 0);
+    return cleanIds.length > 0 ? JSON.stringify(cleanIds) : null;
+};
+
 // 2. CRUD: Crear Usuario
 const createUser = async (req, res) => {
     const { usuario, password, nombres, rol_id, centro_salud_id } = req.body;
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
+        const centrosJSON = normalizarCentroSalud(centro_salud_id);
 
         const [result] = await db.query(
             'INSERT INTO users (usuario, password, nombres, rol_id, centro_salud_id) VALUES (?, ?, ?, ?, ?)',
-            [usuario, hashedPassword, nombres, rol_id, centro_salud_id || null]
+            [usuario, hashedPassword, nombres, rol_id, centrosJSON]
         );
 
         res.status(201).json({ message: 'Usuario creado', id: result.insertId });
@@ -92,7 +151,6 @@ const createUser = async (req, res) => {
 // 3. Obtener Usuarios
 const getUsers = async (req, res) => {
     try {
-        // Hacemos el LEFT JOIN también aquí incluyendo marcapaso y hemodinamia
         const [rows] = await db.query(`
             SELECT 
                 u.id, 
@@ -101,26 +159,50 @@ const getUsers = async (req, res) => {
                 u.rol_id, 
                 u.centro_salud_id, 
                 r.rol, 
-                lcs.descripcion as centro_salud_nombre, 
                 u.estatus as estatus_usuario,
                 mrm.roles_medico,
                 mrm.marcapaso,    
                 mrm.hemodinamia   
             FROM users u 
             LEFT JOIN roles r ON u.rol_id = r.id
-            LEFT JOIN lista_centro_salud lcs ON u.centro_salud_id = lcs.id
             LEFT JOIN multi_roles_medicos mrm ON u.id = mrm.usuario_id
         `);
 
+        const [centros] = await db.query('SELECT id, descripcion FROM lista_centro_salud');
+        const centrosMap = new Map(centros.map(c => [c.id, c.descripcion]));
+
         // Mapeamos los resultados para asegurar formatos correctos
-        const formatRows = rows.map(user => ({
-            ...user,
-            roles_medico: user.roles_medico
-                ? (typeof user.roles_medico === 'string' ? JSON.parse(user.roles_medico) : user.roles_medico)
-                : [],
-            marcapaso: Boolean(user.marcapaso),     // Convertimos el 1/0 de MySQL a true/false para Vue
-            hemodinamia: Boolean(user.hemodinamia)  // Convertimos el 1/0 de MySQL a true/false para Vue
-        }));
+        const formatRows = rows.map(user => {
+            let parsedCentros = [];
+            if (user.centro_salud_id) {
+                if (typeof user.centro_salud_id === 'string') {
+                    try {
+                        const parsed = JSON.parse(user.centro_salud_id);
+                        parsedCentros = Array.isArray(parsed) ? parsed : [parsed];
+                    } catch (e) {
+                        parsedCentros = [user.centro_salud_id];
+                    }
+                } else if (Array.isArray(user.centro_salud_id)) {
+                    parsedCentros = user.centro_salud_id;
+                } else {
+                    parsedCentros = [user.centro_salud_id];
+                }
+            }
+            parsedCentros = parsedCentros.map(Number).filter(id => !isNaN(id) && id > 0);
+
+            const centroNombres = parsedCentros.map(id => centrosMap.get(id)).filter(Boolean);
+
+            return {
+                ...user,
+                centros_salud_ids: parsedCentros,
+                centro_salud_nombre: centroNombres.join(', ') || null,
+                roles_medico: user.roles_medico
+                    ? (typeof user.roles_medico === 'string' ? JSON.parse(user.roles_medico) : user.roles_medico)
+                    : [],
+                marcapaso: Boolean(user.marcapaso),
+                hemodinamia: Boolean(user.hemodinamia)
+            };
+        });
 
         res.json(formatRows);
     } catch (error) {
@@ -133,9 +215,10 @@ const updateUser = async (req, res) => {
     const { id } = req.params;
     const { nombres, rol_id, centro_salud_id, usuario } = req.body;
     try {
+        const centrosJSON = normalizarCentroSalud(centro_salud_id);
         await db.query(
             'UPDATE users SET nombres = ?, rol_id = ?, centro_salud_id = ?, usuario = ? WHERE id = ?',
-            [nombres, rol_id, centro_salud_id || null, usuario, id]
+            [nombres, rol_id, centrosJSON, usuario, id]
         );
         res.json({ message: 'Usuario actualizado correctamente' });
     } catch (error) {

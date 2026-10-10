@@ -11,6 +11,7 @@ const consultasController = require('../../controllers/consultas/consultasContro
 
 
 router.get('/listado-general', consultasController.getConsultasConEtapas);
+router.get('/listado-general/:centro_salud_id', consultasController.getConsultasConEtapasPorCentro);
 
 router.get('/buscar-cedula/:cedula', consultasController.buscarCedulaConsultas);
 // Guardar o Actualizar Consulta Médica

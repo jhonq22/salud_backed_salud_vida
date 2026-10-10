@@ -1,0 +1,447 @@
+================================================================================
+SCRIPTS SQL PARA INSERTAR Y CONFIGURAR MARCAS Y MODELOS DE MARCAPASOS
+Base de Datos: registro_operacion_salud
+Pantalla: /atencion-medica/solicitudes/:id
+Fecha: 2026-10-08
+================================================================================
+
+1. RESUMEN DE LA CONFIGURACIÓN
+--------------------------------------------------------------------------------
+Total de marcas por categoría: 5 en Generador, 5 en Ventricular, 5 en Auricular.
+Total de modelos en este archivo: 276 nuevos (+ 1 existente: ATDR01 para Medtronic Generador).
+Nombres de marcas estandarizados en limpio: MEDTRONIC, BIOTRONIK, ABBOTT/ST JUDE,
+BOSTON SCIENTIFIC, MICROPORT/ SORIN.
+
+================================================================================
+2. CONFIGURACIÓN DE LA TABLA `marcas` (ACTUALIZAR EXISTENTES E INSERTAR NUEVAS)
+================================================================================
+
+-- A) GENERADOR (tipo_marca_id = 1)
+UPDATE marcas SET marca = 'MEDTRONIC', estatus = 1 WHERE id = 1;
+UPDATE marcas SET marca = 'BIOTRONIK', estatus = 1 WHERE id = 8;
+UPDATE marcas SET marca = 'ABBOTT/ST JUDE', estatus = 1 WHERE id = 6;
+UPDATE marcas SET marca = 'BOSTON SCIENTIFIC', estatus = 1 WHERE id = 2;
+INSERT INTO marcas (id, marca, tipo_marca_id, estatus) VALUES (12, 'MICROPORT/ SORIN', 1, 1)
+  ON DUPLICATE KEY UPDATE marca = 'MICROPORT/ SORIN', estatus = 1;
+
+-- B) ELECTRODO VENTRICULAR (tipo_marca_id = 2)
+UPDATE marcas SET marca = 'MEDTRONIC', estatus = 1 WHERE id = 4;
+UPDATE marcas SET marca = 'BIOTRONIK', estatus = 1 WHERE id = 11;
+UPDATE marcas SET marca = 'ABBOTT/ST JUDE', estatus = 1 WHERE id = 5;
+INSERT INTO marcas (id, marca, tipo_marca_id, estatus) VALUES (13, 'BOSTON SCIENTIFIC', 2, 1)
+  ON DUPLICATE KEY UPDATE marca = 'BOSTON SCIENTIFIC', estatus = 1;
+INSERT INTO marcas (id, marca, tipo_marca_id, estatus) VALUES (14, 'MICROPORT/ SORIN', 2, 1)
+  ON DUPLICATE KEY UPDATE marca = 'MICROPORT/ SORIN', estatus = 1;
+
+-- C) ELECTRODO AURICULAR (tipo_marca_id = 3)
+UPDATE marcas SET marca = 'MEDTRONIC', estatus = 1 WHERE id = 7;
+INSERT INTO marcas (id, marca, tipo_marca_id, estatus) VALUES (15, 'BIOTRONIK', 3, 1)
+  ON DUPLICATE KEY UPDATE marca = 'BIOTRONIK', estatus = 1;
+INSERT INTO marcas (id, marca, tipo_marca_id, estatus) VALUES (16, 'ABBOTT/ST JUDE', 3, 1)
+  ON DUPLICATE KEY UPDATE marca = 'ABBOTT/ST JUDE', estatus = 1;
+UPDATE marcas SET marca = 'BOSTON SCIENTIFIC', estatus = 1 WHERE id = 9;
+INSERT INTO marcas (id, marca, tipo_marca_id, estatus) VALUES (17, 'MICROPORT/ SORIN', 3, 1)
+  ON DUPLICATE KEY UPDATE marca = 'MICROPORT/ SORIN', estatus = 1;
+
+================================================================================
+3. INSERCIÓN DE MODELOS DE GENERADOR (tipo_marca_id = 1)
+================================================================================
+
+-- -----------------------------------------------------------------------------
+-- GENERADOR | MARCA: MEDTRONIC (marca_id = 1) [34 modelos]
+-- -----------------------------------------------------------------------------
+-- NOTA: El modelo 'ATDR01' ya existe en la base de datos (id: 38, marca_id: 1, estatus: 1)
+-- con 21 operaciones guardadas históricas, por lo que se mantiene activo sin duplicar.
+
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('AZURE XT DR MRI', 1, 1),
+  ('AZURE XT SR MRI', 1, 1),
+  ('AZURE S DR MRI', 1, 1),
+  ('AZURE S SR MRI', 1, 1),
+  ('ADVISA DR MRI', 1, 1),
+  ('ADVISA SR MRI', 1, 1),
+  ('ATTESTA DR MRI', 1, 1),
+  ('ATTESTA S DR MRI', 1, 1),
+  ('ATTESTA L DR MRI', 1, 1),
+  ('ATTESTA SR MRI', 1, 1),
+  ('ADAPTA DR', 1, 1),
+  ('ADAPTA S DR', 1, 1),
+  ('ADAPTA L DR', 1, 1),
+  ('MICRA VR', 1, 1),
+  ('MICRA AV', 1, 1),
+  ('MICRA VR2', 1, 1),
+  ('MICRA AV2', 1, 1),
+  ('SPHERA DR MRI', 1, 1),
+  ('SPHERA L DR MRI', 1, 1),
+  ('SPHERA SR MRI', 1, 1),
+  ('ENSURA DR', 1, 1),
+  ('ENSURA SR', 1, 1),
+  ('SENSIA DR', 1, 1),
+  ('SENSIA SR', 1, 1),
+  ('RELIA DR', 1, 1),
+  ('RELIA SR', 1, 1),
+  ('VERSA DR', 1, 1),
+  ('ASTRA MRI X1DR01', 1, 1),
+  ('ASTRA MRI X2DR01', 1, 1),
+  ('ASTRA MRI X3DR01', 1, 1),
+  ('ASTRA MRI X1SR01', 1, 1),
+  ('ASTRA MRI X2SR01', 1, 1),
+  ('ASTRA MRI X3SR01', 1, 1);
+
+-- -----------------------------------------------------------------------------
+-- GENERADOR | MARCA: BIOTRONIK (marca_id = 8) [18 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('AMVIA EDGE SR-T', 8, 1),
+  ('AMVIA EDGE DR-T', 8, 1),
+  ('AMVIA SKY SR-T', 8, 1),
+  ('AMVIA SKY DR-T', 8, 1),
+  ('SOLVIA RISE SR-T', 8, 1),
+  ('SOLVIA RISE DR-T', 8, 1),
+  ('EDORA 8 SR-T', 8, 1),
+  ('EDORA 8 DR-T', 8, 1),
+  ('EVITY 8 SR-T', 8, 1),
+  ('EVITY 8 DR-T', 8, 1),
+  ('EVITY 6 SR-T', 8, 1),
+  ('EVITY 6 DR-T', 8, 1),
+  ('ENITRA 6 SR-T', 8, 1),
+  ('ENITRA 6 DR-T', 8, 1),
+  ('ENITRA 8 SR-T', 8, 1),
+  ('ENITRA 8 DR-T', 8, 1),
+  ('ENTICOS 4 SR', 8, 1),
+  ('ENTICOS 4 DR', 8, 1);
+
+-- -----------------------------------------------------------------------------
+-- GENERADOR | MARCA: ABBOTT/ST JUDE (marca_id = 6) [27 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('ASSURITY MRI PM1272', 6, 1),
+  ('ASSURITY MRI PM2272', 6, 1),
+  ('ASSURITY PM1240', 6, 1),
+  ('ASSURITY PM2240', 6, 1),
+  ('ASSURITY+ PM1260', 6, 1),
+  ('ASSURITY+ PM2260', 6, 1),
+  ('ENDURITY PM1160', 6, 1),
+  ('ENDURITY PM2160', 6, 1),
+  ('ENDURITY MRI PM1172', 6, 1),
+  ('ENDURITY MRI PM2172', 6, 1),
+  ('ENDURITY CORE SR PM1140', 6, 1),
+  ('ENDURITY CORE SR PM1152', 6, 1),
+  ('ENDURITY CORE DR PM2140', 6, 1),
+  ('ENDURITY CORE DR PM2152', 6, 1),
+  ('ENDURITY SR PM1162', 6, 1),
+  ('ENDURITY DR PM2162', 6, 1),
+  ('ZENUS SR PM1170', 6, 1),
+  ('ZENUS DR PM2170', 6, 1),
+  ('ZENUS MRI SR PM1182', 6, 1),
+  ('ZENUS MRI DR PM2182', 6, 1),
+  ('ZENEX SR PM1250', 6, 1),
+  ('ZENEX DR PM2250', 6, 1),
+  ('ZENEX MRI SR PM1282', 6, 1),
+  ('ZENEX MRI DR PM2282', 6, 1),
+  ('ENDOTAK RELIANCE', 6, 1),
+  ('ISOFLEX OPTIM', 6, 1),
+  ('TENDRIL STS', 6, 1);
+
+-- -----------------------------------------------------------------------------
+-- GENERADOR | MARCA: BOSTON SCIENTIFIC (marca_id = 2) [26 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('ACCOLADE MRI SR', 2, 1),
+  ('ACCOLADE MRI DR', 2, 1),
+  ('ACCOLADE EL MRI DR', 2, 1),
+  ('ESSENTIO SR', 2, 1),
+  ('ESSENTIO DR', 2, 1),
+  ('ESSENTIO MRI SR', 2, 1),
+  ('ESSENTIO MRI DR', 2, 1),
+  ('ESSENTIO EL MRI DR', 2, 1),
+  ('PROPONENT MRI SR', 2, 1),
+  ('PROPONENT MRI DR', 2, 1),
+  ('PROPONENT EL MRI DR', 2, 1),
+  ('ALTRUA 2 SR', 2, 1),
+  ('ALTRUA 2 DR', 2, 1),
+  ('ALTRUA 2 EL DR', 2, 1),
+  ('INGENIO SR', 2, 1),
+  ('INGENIO DR', 2, 1),
+  ('INGENIO EL DR', 2, 1),
+  ('INGENIO MRI SR', 2, 1),
+  ('INGENIO MRI DR', 2, 1),
+  ('INGENIO EL MRI DR', 2, 1),
+  ('ADVANTIO SR', 2, 1),
+  ('ADVANTIO DR', 2, 1),
+  ('ADVANTIO EL DR', 2, 1),
+  ('VITALIO SR', 2, 1),
+  ('VITALIO DR', 2, 1),
+  ('VITALIO EL DR', 2, 1);
+
+-- -----------------------------------------------------------------------------
+-- GENERADOR | MARCA: MICROPORT/ SORIN (marca_id = 12) [23 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('KORA 100 SR MRI', 12, 1),
+  ('KORA 100 DR MRI', 12, 1),
+  ('KORA 250 SR MRI', 12, 1),
+  ('KORA 250 DR MRI', 12, 1),
+  ('ESPRIT SR', 12, 1),
+  ('ESPRIT DR', 12, 1),
+  ('REPLY SR', 12, 1),
+  ('REPLY DR', 12, 1),
+  ('REPLY 200 SR', 12, 1),
+  ('REPLY 200 DR', 12, 1),
+  ('REPLY CRT-P', 12, 1),
+  ('ALIZEA SR', 12, 1),
+  ('ALIZEA DR', 12, 1),
+  ('BOREA SR', 12, 1),
+  ('BOREA DR', 12, 1),
+  ('CELEA SR', 12, 1),
+  ('CELEA DR', 12, 1),
+  ('ENO SR', 12, 1),
+  ('ENO DR', 12, 1),
+  ('TEO SR', 12, 1),
+  ('TEO DR', 12, 1),
+  ('OTO SR', 12, 1),
+  ('OTO DR', 12, 1);
+
+================================================================================
+4. INSERCIÓN DE MODELOS DE ELECTRODO VENTRICULAR (tipo_marca_id = 2)
+================================================================================
+
+-- -----------------------------------------------------------------------------
+-- ELECTRODO VENTRICULAR | MARCA: MEDTRONIC (marca_id = 4) [18 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('CAPSUREFIX NOVUS 35', 4, 1),
+  ('CAPSUREFIX NOVUS 45', 4, 1),
+  ('CAPSUREFIX NOVUS 52', 4, 1),
+  ('CAPSUREFIX NOVUS 58', 4, 1),
+  ('CAPSUREFIX NOVUS 65', 4, 1),
+  ('CAPSUREFIX NOVUS 85', 4, 1),
+  ('CAPSUREFIX MRI 45', 4, 1),
+  ('CAPSUREFIX MRI 52', 4, 1),
+  ('CAPSUREFIX MRI 58', 4, 1),
+  ('CAPSURE SENSE 52', 4, 1),
+  ('CAPSURE SENSE 58', 4, 1),
+  ('CAPSURE Z NOVUS 45', 4, 1),
+  ('CAPSURE Z NOVUS 52', 4, 1),
+  ('CAPSURE Z NOVUS 58', 4, 1),
+  ('CAPSURE Z NOVUS 65', 4, 1),
+  ('SELECTSECURE 59', 4, 1),
+  ('SELECTSECURE 69', 4, 1),
+  ('SELECTSECURE 74', 4, 1);
+
+-- -----------------------------------------------------------------------------
+-- ELECTRODO VENTRICULAR | MARCA: BIOTRONIK (marca_id = 11) [18 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('SOLIA S 53', 11, 1),
+  ('SOLIA S 60', 11, 1),
+  ('SOLIA S 45', 11, 1),
+  ('SIELLO S 53', 11, 1),
+  ('SIELLO S 60', 11, 1),
+  ('SIELLO S 45', 11, 1),
+  ('SAFIO S 53', 11, 1),
+  ('SAFIO S 60', 11, 1),
+  ('SAFIO S 45', 11, 1),
+  ('SETROX S 53', 11, 1),
+  ('SETROX S 60', 11, 1),
+  ('SETROX S 45', 11, 1),
+  ('SOLIA T 53', 11, 1),
+  ('SOLIA T 60', 11, 1),
+  ('SIELLO T 53', 11, 1),
+  ('SIELLO T 60', 11, 1),
+  ('SOLIA CSP 53', 11, 1),
+  ('SOLIA CSP 60', 11, 1);
+
+-- -----------------------------------------------------------------------------
+-- ELECTRODO VENTRICULAR | MARCA: ABBOTT/ST JUDE (marca_id = 5) [17 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('TENDRIL STS 2088TC 46', 5, 1),
+  ('TENDRIL STS 2088TC 52', 5, 1),
+  ('TENDRIL STS 2088TC 58', 5, 1),
+  ('TENDRIL STS 2088TC 65', 5, 1),
+  ('TENDRIL STS 2088TC 100', 5, 1),
+  ('TENDRIL MRI LPA1200M 46', 5, 1),
+  ('TENDRIL MRI LPA1200M 52', 5, 1),
+  ('TENDRIL MRI LPA1200M 58', 5, 1),
+  ('ULTIPACE LPA1231 46', 5, 1),
+  ('ULTIPACE LPA1231 52', 5, 1),
+  ('ULTIPACE LPA1231 58', 5, 1),
+  ('ULTIPACE LPA1231 65', 5, 1),
+  ('ISOFLEX OPTIM 1948 52', 5, 1),
+  ('ISOFLEX OPTIM 1948 58', 5, 1),
+  ('DURATA', 5, 1),
+  ('OPTISURE', 5, 1),
+  ('RIATA ST', 5, 1);
+
+-- -----------------------------------------------------------------------------
+-- ELECTRODO VENTRICULAR | MARCA: BOSTON SCIENTIFIC (marca_id = 13) [13 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('INGEVITY 7840 45', 13, 1),
+  ('INGEVITY 7841 52', 13, 1),
+  ('INGEVITY 7842 59', 13, 1),
+  ('INGEVITY MRI 7740 45', 13, 1),
+  ('INGEVITY MRI 7741 52', 13, 1),
+  ('INGEVITY MRI 7742 59', 13, 1),
+  ('INGEVITY MRI 7731 52', 13, 1),
+  ('INGEVITY MRI 7732 59', 13, 1),
+  ('FINELINE II 4469 45', 13, 1),
+  ('FINELINE II 4470 52', 13, 1),
+  ('FINELINE II 4471 58', 13, 1),
+  ('FINELINE II 4456 52', 13, 1),
+  ('FINELINE II 4457 58', 13, 1);
+
+-- -----------------------------------------------------------------------------
+-- ELECTRODO VENTRICULAR | MARCA: MICROPORT/ SORIN (marca_id = 14) [10 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('BEFLEX RF44D', 14, 1),
+  ('BEFLEX RF45D', 14, 1),
+  ('BEFLEX RF46D', 14, 1),
+  ('VEGA R 52', 14, 1),
+  ('VEGA R 58', 14, 1),
+  ('VEGA R 46', 14, 1),
+  ('XFINE TX25D', 14, 1),
+  ('XFINE TX26D', 14, 1),
+  ('XFINE JX24D', 14, 1),
+  ('XFINE JX25D', 14, 1);
+
+================================================================================
+5. INSERCIÓN DE MODELOS DE ELECTRODO AURICULAR (tipo_marca_id = 3)
+================================================================================
+
+-- -----------------------------------------------------------------------------
+-- ELECTRODO AURICULAR | MARCA: MEDTRONIC (marca_id = 7) [16 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('CAPSUREFIX NOVUS 35', 7, 1),
+  ('CAPSUREFIX NOVUS 45', 7, 1),
+  ('CAPSUREFIX NOVUS 52', 7, 1),
+  ('CAPSUREFIX NOVUS 58', 7, 1),
+  ('CAPSUREFIX NOVUS 65', 7, 1),
+  ('CAPSUREFIX NOVUS 85', 7, 1),
+  ('CAPSUREFIX MRI 45', 7, 1),
+  ('CAPSUREFIX MRI 52', 7, 1),
+  ('CAPSUREFIX MRI 58', 7, 1),
+  ('CAPSURE SENSE 45', 7, 1),
+  ('CAPSURE SENSE 53', 7, 1),
+  ('CAPSURE Z NOVUS 45', 7, 1),
+  ('CAPSURE Z NOVUS 53', 7, 1),
+  ('SELECTSECURE 59', 7, 1),
+  ('SELECTSECURE 69', 7, 1),
+  ('SELECTSECURE 74', 7, 1);
+
+-- -----------------------------------------------------------------------------
+-- ELECTRODO AURICULAR | MARCA: BIOTRONIK (marca_id = 15) [16 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('SOLIA S 53', 15, 1),
+  ('SOLIA S 60', 15, 1),
+  ('SOLIA S 45', 15, 1),
+  ('SIELLO S 53', 15, 1),
+  ('SIELLO S 60', 15, 1),
+  ('SIELLO S 45', 15, 1),
+  ('SAFIO S 53', 15, 1),
+  ('SAFIO S 60', 15, 1),
+  ('SAFIO S 45', 15, 1),
+  ('SETROX S 53', 15, 1),
+  ('SETROX S 60', 15, 1),
+  ('SETROX S 45', 15, 1),
+  ('SOLIA JT 45', 15, 1),
+  ('SOLIA JT 53', 15, 1),
+  ('SIELLO JT 45', 15, 1),
+  ('SIELLO JT 53', 15, 1);
+
+-- -----------------------------------------------------------------------------
+-- ELECTRODO AURICULAR | MARCA: ABBOTT/ST JUDE (marca_id = 16) [16 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('TENDRIL STS 2088TC 46', 16, 1),
+  ('TENDRIL STS 2088TC 52', 16, 1),
+  ('TENDRIL STS 2088TC 58', 16, 1),
+  ('TENDRIL STS 2088TC 65', 16, 1),
+  ('TENDRIL STS 2088TC 100', 16, 1),
+  ('TENDRIL MRI LPA1200M 46', 16, 1),
+  ('TENDRIL MRI LPA1200M 52', 16, 1),
+  ('TENDRIL MRI LPA1200M 58', 16, 1),
+  ('ULTIPACE LPA1231 46', 16, 1),
+  ('ULTIPACE LPA1231 52', 16, 1),
+  ('ULTIPACE LPA1231 58', 16, 1),
+  ('ULTIPACE LPA1231 65', 16, 1),
+  ('ISOFLEX OPTIM 1944 46', 16, 1),
+  ('ISOFLEX OPTIM 1944 52', 16, 1),
+  ('ISOFLEX OPTIM 1948 52', 16, 1),
+  ('ISOFLEX OPTIM 1948 58', 16, 1);
+
+-- -----------------------------------------------------------------------------
+-- ELECTRODO AURICULAR | MARCA: BOSTON SCIENTIFIC (marca_id = 9) [14 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('Dextrus', 9, 1),
+  ('INGEVITY 7840 45', 9, 1),
+  ('INGEVITY 7841 52', 9, 1),
+  ('INGEVITY 7842 59', 9, 1),
+  ('INGEVITY MRI 7740 45', 9, 1),
+  ('INGEVITY MRI 7741 52', 9, 1),
+  ('INGEVITY MRI 7742 59', 9, 1),
+  ('INGEVITY MRI 7735 45', 9, 1),
+  ('INGEVITY MRI 7736 52', 9, 1),
+  ('FINELINE II 4469 45', 9, 1),
+  ('FINELINE II 4470 52', 9, 1),
+  ('FINELINE II 4471 58', 9, 1),
+  ('FINELINE II 4479 45', 9, 1),
+  ('FINELINE II 4480 52', 9, 1);
+
+-- -----------------------------------------------------------------------------
+-- ELECTRODO AURICULAR | MARCA: MICROPORT/ SORIN (marca_id = 17) [11 modelos]
+-- -----------------------------------------------------------------------------
+INSERT INTO modelos (modelo, marca_id, estatus) VALUES
+  ('BEFLEX RF44D', 17, 1),
+  ('BEFLEX RF45D', 17, 1),
+  ('BEFLEX RF46D', 17, 1),
+  ('VEGA R 52', 17, 1),
+  ('VEGA R 58', 17, 1),
+  ('VEGA R 46', 17, 1),
+  ('XFINE TX25D', 17, 1),
+  ('XFINE TX26D', 17, 1),
+  ('XFINE JX24D', 17, 1),
+  ('XFINE JX25D', 17, 1),
+  ('SonRtip', 17, 1);
+
+================================================================================
+6. QUERYS DE VERIFICACIÓN POST-EJECUCIÓN
+================================================================================
+
+-- Verificar las 5 marcas activas por cada sección:
+SELECT id, marca, tipo_marca_id, estatus FROM marcas WHERE estatus = 1 ORDER BY tipo_marca_id, id;
+
+-- Verificar cantidad de modelos activos por cada marca y categoría:
+SELECT 
+  ma.tipo_marca_id,
+  CASE ma.tipo_marca_id
+    WHEN 1 THEN 'GENERADOR'
+    WHEN 2 THEN 'ELECTRODO VENTRICULAR'
+    WHEN 3 THEN 'ELECTRODO AURICULAR'
+  END as categoria,
+  ma.id as marca_id,
+  ma.marca,
+  COUNT(mo.id) as total_modelos_activos
+FROM marcas ma
+JOIN modelos mo ON mo.marca_id = ma.id AND mo.estatus = 1
+WHERE ma.estatus = 1
+GROUP BY ma.tipo_marca_id, ma.id, ma.marca
+ORDER BY ma.tipo_marca_id, ma.marca;
+
+================================================================================
+7. QUERY DE REVERSIÓN / ROLLBACK (EN CASO DE NECESITAR DESHACER)
+================================================================================
+
+-- Desactivar los modelos insertados en esta tanda (con id > 41):
+DELETE FROM modelos WHERE id > 41;
+
+-- Eliminar las marcas nuevas creadas (id entre 12 y 17):
+DELETE FROM marcas WHERE id BETWEEN 12 AND 17;
+
+-- Revertir estatus de marcas reactivadas si fuera necesario:
+UPDATE marcas SET estatus = 0 WHERE id IN (2, 5, 6, 9);

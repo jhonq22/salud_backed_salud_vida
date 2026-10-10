@@ -84,18 +84,20 @@ const MedicoController = {
                 u.estatus AS estatus_usuario,
                 mrm.roles_medico,
                 mrm.marcapaso,    
-                mrm.hemodinamia,
-                lcs.descripcion AS centro_salud_descripcion
+                mrm.hemodinamia
             FROM registro_medicos m
             LEFT JOIN firmas_medicos f ON m.id = f.medico_id
             LEFT JOIN especialidades e ON f.especialidad_id = e.id
             LEFT JOIN users u ON m.usuario_id = u.id
-            LEFT JOIN lista_centro_salud lcs ON u.centro_salud_id = lcs.id
             LEFT JOIN multi_roles_medicos mrm ON u.id = mrm.usuario_id
             ORDER BY m.primerApellido ASC, m.primerNombre ASC
         `;
 
             const [rows] = await db.query(sql);
+
+            // Obtener centros de salud para mapeo de descripciones
+            const [centros] = await db.query('SELECT id, descripcion FROM lista_centro_salud');
+            const centrosMap = new Map(centros.map(c => [c.id, c.descripcion]));
 
             // Agrupamos igual que en getMedicos, pero ahora el objeto raíz 
             // contendrá también la info del usuario y sus roles.
@@ -122,9 +124,33 @@ const MedicoController = {
                     delete nuevoMedico.nombre_especialidad;
                     delete nuevoMedico.especialidad_id;
                     delete nuevoMedico.nombre_archivo;
-                    // Borramos la 'descripcion' suelta de la especialidad para evitar confusiones, 
-                    // ya que está dentro del array 'especialidades' (y tenemos centro_salud_descripcion)
                     delete nuevoMedico.descripcion; 
+
+                    // Parsear centro_salud_id
+                    let centrosIds = [];
+                    if (nuevoMedico.centro_salud_id) {
+                        if (typeof nuevoMedico.centro_salud_id === 'string') {
+                            try {
+                                const parsed = JSON.parse(nuevoMedico.centro_salud_id);
+                                centrosIds = Array.isArray(parsed) ? parsed : [parsed];
+                            } catch (e) {
+                                centrosIds = [nuevoMedico.centro_salud_id];
+                            }
+                        } else if (Array.isArray(nuevoMedico.centro_salud_id)) {
+                            centrosIds = nuevoMedico.centro_salud_id;
+                        } else {
+                            centrosIds = [nuevoMedico.centro_salud_id];
+                        }
+                    }
+                    centrosIds = centrosIds.map(Number).filter(id => !isNaN(id) && id > 0);
+
+                    // Mapear opciones con value y label para MultiSelect
+                    nuevoMedico.centros_salud = centrosIds.map(id => ({
+                        value: id,
+                        label: centrosMap.get(id) || `Centro #${id}`
+                    }));
+
+                    nuevoMedico.centro_salud_descripcion = nuevoMedico.centros_salud.map(c => c.label).join(', ') || 'Sin centro asignado';
 
                     // Parsear roles_medico si viene como string JSON desde la BD
                     if (typeof nuevoMedico.roles_medico === 'string') {
@@ -167,13 +193,18 @@ const MedicoController = {
                     m.id AS value
                 FROM registro_medicos m
                 INNER JOIN users u ON m.usuario_id = u.id
-                WHERE u.centro_salud_id = ? 
+                WHERE (
+                    CASE 
+                        WHEN JSON_VALID(u.centro_salud_id) THEN JSON_CONTAINS(u.centro_salud_id, CAST(? AS CHAR))
+                        ELSE u.centro_salud_id = ?
+                    END = 1
+                ) 
                   AND u.rol_id = 4 
                   AND m.estatus = 1
                 ORDER BY m.primerNombre ASC, m.primerApellido ASC
             `;
 
-            const [rows] = await db.query(sql, [centro_salud_id]);
+            const [rows] = await db.query(sql, [centro_salud_id, centro_salud_id]);
 
             // Devolvemos el arreglo directamente en el formato [{ label: '...', value: X }]
             res.json(rows);
