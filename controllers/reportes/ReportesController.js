@@ -1371,11 +1371,15 @@ getIndicadoresReportes: async (req, res) => {
             ${filterSolicitudes}
         `;
 
-        // 4to Reporte: Total de Solicitudes por tipo (Marcapasos Endocárdico, Hemodinamia, Marcapasos Epicárdico)
+        // 4to Reporte: Total de Solicitudes por tipo (Hemodinamia y Marcapasos unificado)
         const queryProc = `
             SELECT 
-                tp.tipo_operacion AS etiqueta, 
-                COALESCE(sub.total, 0) AS total
+                CASE 
+                    WHEN LOWER(tp.tipo_operacion) LIKE '%hemodinamia%' THEN 'Hemodinamia'
+                    WHEN LOWER(tp.tipo_operacion) LIKE '%marcapaso%' THEN 'Marcapasos'
+                    ELSE tp.tipo_operacion
+                END AS etiqueta, 
+                SUM(COALESCE(sub.total, 0)) AS total
             FROM tipo_operaciones tp
             LEFT JOIN (
                 SELECT rsp.tipo_operacion_id, COUNT(rsp.id) AS total
@@ -1384,6 +1388,14 @@ getIndicadoresReportes: async (req, res) => {
                 ${filterSolicitudes}
                 GROUP BY rsp.tipo_operacion_id
             ) sub ON tp.id = sub.tipo_operacion_id
+            WHERE tp.estatus = 1
+            GROUP BY 
+                CASE 
+                    WHEN LOWER(tp.tipo_operacion) LIKE '%hemodinamia%' THEN 'Hemodinamia'
+                    WHEN LOWER(tp.tipo_operacion) LIKE '%marcapaso%' THEN 'Marcapasos'
+                    ELSE tp.tipo_operacion
+                END
+            ORDER BY etiqueta ASC
         `;
 
         // Reporte de Distribución Geográfica (Estado)

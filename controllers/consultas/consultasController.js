@@ -164,7 +164,7 @@ const saveSegundaEtapa = async (req, res) => {
         evolucion_post_procedimiento,
         tratamientos_id, // Se recibe como array para ser JSON
         sugerencia_consulta_id, // Se recibe como array para ser JSON
-        puntuacion_valderrama // <-- NUEVO CAMPO AGREGADO
+        puntuacion_valderrama
     } = req.body;
 
     if (!consultas_medica_id) {
