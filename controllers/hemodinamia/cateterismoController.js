@@ -11,6 +11,17 @@ const saveCateterismo = async (req, res) => {
         conclusiones_id,
         conclusiones_otros,
         sugerencia_diagnostico_id,
+        cateteres_id,
+        guias_id,
+        otros_guias,
+        contrastes_id,
+        otros_contrastes,
+        cantidad,
+        ventriculografia_id,
+        medicamentos_utilizados_id,
+        otros_medicamentos_utilizados,
+        material_medico_quirurgico_id,
+        syntax,
         arterias 
     } = req.body;
 
@@ -31,6 +42,17 @@ const saveCateterismo = async (req, res) => {
         const conclusionesJson = conclusiones_id ? JSON.stringify(conclusiones_id) : null;
         // Se aplica stringify al MultiSelect
         const compProcedimientoJson = complicaciones_procedimiento ? JSON.stringify(complicaciones_procedimiento) : null;
+        const medicamentosJson = medicamentos_utilizados_id ? (typeof medicamentos_utilizados_id === 'string' ? medicamentos_utilizados_id : JSON.stringify(medicamentos_utilizados_id)) : null;
+        const materialQuirurgicoJson = material_medico_quirurgico_id ? (typeof material_medico_quirurgico_id === 'string' ? material_medico_quirurgico_id : JSON.stringify(material_medico_quirurgico_id)) : null;
+
+        const parseNumOrNull = (val) => {
+            if (val === undefined || val === null || val === '') return null;
+            const parsed = Number(val);
+            return isNaN(parsed) ? null : parsed;
+        };
+
+        const parsedCantidad = parseNumOrNull(cantidad);
+        const parsedSyntax = parseNumOrNull(syntax);
 
         if (exist.length > 0) {
             // 2. Si existe, hacemos UPDATE del maestro
@@ -45,6 +67,17 @@ const saveCateterismo = async (req, res) => {
                     conclusiones_id = ?,
                     conclusiones_otros = ?,
                     sugerencia_diagnostico_id = ?,
+                    cateteres_id = ?,
+                    guias_id = ?,
+                    otros_guias = ?,
+                    contrastes_id = ?,
+                    otros_contrastes = ?,
+                    cantidad = ?,
+                    ventriculografia_id = ?,
+                    medicamentos_utilizados_id = ?,
+                    otros_medicamentos_utilizados = ?,
+                    material_medico_quirurgico_id = ?,
+                    syntax = ?,
                     fecha_actualizacion = CURRENT_TIMESTAMP
                 WHERE id = ?`,
                 [
@@ -55,6 +88,17 @@ const saveCateterismo = async (req, res) => {
                     conclusionesJson,
                     conclusiones_otros || null,
                     sugerencia_diagnostico_id || null,
+                    cateteres_id || null,
+                    guias_id || null,
+                    otros_guias || null,
+                    contrastes_id || null,
+                    otros_contrastes || null,
+                    parsedCantidad,
+                    ventriculografia_id || null,
+                    medicamentosJson,              // JSON stringified (MultiSelect)
+                    otros_medicamentos_utilizados || null,
+                    materialQuirurgicoJson,        // JSON stringified (MultiSelect)
+                    parsedSyntax,
                     cateterismoId
                 ]
             );
@@ -69,8 +113,8 @@ const saveCateterismo = async (req, res) => {
             // 4. Si no existe, hacemos INSERT del maestro
             const [result] = await db.query(
                 `INSERT INTO cateterismo_diagnostico_hemodinamia 
-                (solicitud_paciente_id, dominancia_id, descripcion, complicaciones_procedimiento, complicaciones_acceso, conclusiones_id, conclusiones_otros, sugerencia_diagnostico_id) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, 
+                (solicitud_paciente_id, dominancia_id, descripcion, complicaciones_procedimiento, complicaciones_acceso, conclusiones_id, conclusiones_otros, sugerencia_diagnostico_id, cateteres_id, guias_id, otros_guias, contrastes_id, otros_contrastes, cantidad, ventriculografia_id, medicamentos_utilizados_id, otros_medicamentos_utilizados, material_medico_quirurgico_id, syntax) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
                 [
                     solicitud_paciente_id, 
                     dominancia_id || null, 
@@ -79,7 +123,18 @@ const saveCateterismo = async (req, res) => {
                     complicaciones_acceso || null, // INT directo (Autocomplete)
                     conclusionesJson,
                     conclusiones_otros || null,
-                    sugerencia_diagnostico_id || null
+                    sugerencia_diagnostico_id || null,
+                    cateteres_id || null,
+                    guias_id || null,
+                    otros_guias || null,
+                    contrastes_id || null,
+                    otros_contrastes || null,
+                    parsedCantidad,
+                    ventriculografia_id || null,
+                    medicamentosJson,              // JSON stringified (MultiSelect)
+                    otros_medicamentos_utilizados || null,
+                    materialQuirurgicoJson,        // JSON stringified (MultiSelect)
+                    parsedSyntax
                 ]
             );
             

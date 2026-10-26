@@ -21,6 +21,10 @@ const ReportesController = {
                 SELECT 
                      
                     p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular, p.codificacion_buen_gobierno,
+                    p.sexo,
+                    DATE_FORMAT(p.fecha_nacimiento, '%d/%m/%Y') AS fecha_nacimiento,
+                    p.edad,
+                    s.tipo_operacion_id,
                     s.tipo_marca_paso_id,
                     s.estatus_solicitud_id,
                     s.observacion_general,
@@ -30,7 +34,9 @@ const ReportesController = {
                     rm.primerNombre AS medico_nombre,
                     rm.primerApellido AS medico_apellido,
                     DATE_FORMAT(s.fecha_operacion, '%e de %M de %Y') AS fecha_operacion,
-                    DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
+                    DATE_FORMAT(s.fecha_operacion, '%d/%m/%Y') AS fecha_intervencion,
+                    DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud,
+                    DATE_FORMAT(s.fecha_cita, '%d/%m/%Y') AS fecha_cita
                 FROM registrar_solicitud_pacientes s
                 INNER JOIN pacientes p ON s.paciente_id = p.id
                 LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
@@ -280,6 +286,10 @@ getSabanaHemodinamia: async (req, res) => {
         const [solicitudOperacionResult] = await db.query(`
             SELECT 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular, p.codificacion_buen_gobierno,
+                p.sexo,
+                DATE_FORMAT(p.fecha_nacimiento, '%d/%m/%Y') AS fecha_nacimiento,
+                p.edad,
+                s.tipo_operacion_id,
                 s.tipo_marca_paso_id,
                 s.estatus_solicitud_id,
                 s.observacion_general,
@@ -289,7 +299,9 @@ getSabanaHemodinamia: async (req, res) => {
                 rm.primerNombre AS medico_nombre,
                 rm.primerApellido AS medico_apellido,
                 DATE_FORMAT(s.fecha_operacion, '%e de %M de %Y') AS fecha_operacion,
-                DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
+                DATE_FORMAT(s.fecha_operacion, '%d/%m/%Y') AS fecha_intervencion,
+                DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud,
+                DATE_FORMAT(s.fecha_cita, '%d/%m/%Y') AS fecha_cita
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
             LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
@@ -644,6 +656,65 @@ reporteCaterismo: async (req, res) => {
                 cateterismoMaster.conclusion = conclusionFinal || '';
 
                 cateterismoMaster.complicacion = cateterismoMaster.complicacion_acceso_nombre || '';
+
+                // --- RESOLVER MATERIALES Y PARÁMETROS ADICIONALES ---
+                let diagMatIds = new Set();
+                const addDiagMatId = (id) => {
+                    if (id && !isNaN(id)) diagMatIds.add(Number(id));
+                };
+
+                addDiagMatId(cateterismoMaster.cateteres_id);
+                addDiagMatId(cateterismoMaster.guias_id);
+                addDiagMatId(cateterismoMaster.contrastes_id);
+                addDiagMatId(cateterismoMaster.ventriculografia_id);
+
+                const parseDiagMulti = (val) => {
+                    if (!val) return [];
+                    try {
+                        const arr = typeof val === 'string' ? JSON.parse(val) : val;
+                        if (Array.isArray(arr)) {
+                            return arr.map(item => {
+                                if (typeof item === 'object' && item !== null) {
+                                    if (item.value) addDiagMatId(item.value);
+                                    if (item.id) addDiagMatId(item.id);
+                                    return item.label || item.nombre || item.value;
+                                }
+                                addDiagMatId(item);
+                                return item;
+                            });
+                        }
+                    } catch (e) {}
+                    return [];
+                };
+
+                let diagMedicamentos = parseDiagMulti(cateterismoMaster.medicamentos_utilizados_id);
+                let diagMaterialesQuirurgicos = parseDiagMulti(cateterismoMaster.material_medico_quirurgico_id);
+
+                if (diagMatIds.size > 0) {
+                    try {
+                        const [matRows] = await db.query(
+                            'SELECT id, nombre, tipo FROM tipo_general_materiales WHERE id IN (?)',
+                            [Array.from(diagMatIds)]
+                        );
+                        const matMap = {};
+                        matRows.forEach(m => {
+                            matMap[m.id] = m.nombre;
+                        });
+
+                        cateterismoMaster.cateteres_nombre = matMap[cateterismoMaster.cateteres_id] || '';
+                        cateterismoMaster.guias_nombre = matMap[cateterismoMaster.guias_id] || '';
+                        cateterismoMaster.contrastes_nombre = matMap[cateterismoMaster.contrastes_id] || '';
+                        cateterismoMaster.ventriculografia_nombre = matMap[cateterismoMaster.ventriculografia_id] || '';
+
+                        diagMedicamentos = diagMedicamentos.map(m => (!isNaN(m) && matMap[m]) ? matMap[m] : m);
+                        diagMaterialesQuirurgicos = diagMaterialesQuirurgicos.map(m => (!isNaN(m) && matMap[m]) ? matMap[m] : m);
+                    } catch (errMat) {
+                        console.error("Error al obtener nombres de materiales en diagnóstico:", errMat);
+                    }
+                }
+
+                cateterismoMaster.medicamentos_utilizados_nombres = diagMedicamentos;
+                cateterismoMaster.material_quirurgico_nombres = diagMaterialesQuirurgicos;
             }
 
             // 3. OBTENER EXAMEN FÍSICO Y SIGNOS VITALES
@@ -734,8 +805,11 @@ reporteCaterismo: async (req, res) => {
                         ELSE p.sexo
                     END AS genero,
                     p.telefono_celular,
+                    p.telefono_local,
+                    COALESCE(NULLIF(p.telefono_celular, ''), NULLIF(p.telefono_local, ''), NULLIF(p.telefono_emergencia, ''), '') AS telefono,
                     p.codificacion_buen_gobierno,
                     tp.tipo_operacion AS procedimiento,
+                    ind.diagnostico,
                     s.medico_id,
                     s.ayudante_medico_uno_id,
                     s.ayudante_medico_dos_id,
@@ -745,6 +819,7 @@ reporteCaterismo: async (req, res) => {
                 FROM registrar_solicitud_pacientes s
                 INNER JOIN pacientes p ON s.paciente_id = p.id
                 LEFT JOIN tipo_operaciones tp ON s.tipo_operacion_id = tp.id
+                LEFT JOIN indicaciones_implante_nuevos ind ON s.id = ind.solicitud_paciente_id
                 LEFT JOIN registro_medicos m ON s.medico_id = m.id
                 LEFT JOIN registro_medicos ay1 ON s.ayudante_medico_uno_id = ay1.id
                 LEFT JOIN registro_medicos ay2 ON s.ayudante_medico_dos_id = ay2.id
@@ -752,6 +827,36 @@ reporteCaterismo: async (req, res) => {
             `, [solicitud_id]);
 
             const pacienteData = pacienteResult[0] || {};
+
+            // 0.1 OBTENER DETALLE DIAGNÓSTICO (PARA COMPLEMENTAR LAS ARTERIAS)
+            let numeroCateterismo = '';
+            let diagArteriasMap = {};
+            try {
+                const [diagRows] = await db.query(
+                    'SELECT id FROM cateterismo_diagnostico_hemodinamia WHERE solicitud_paciente_id = ? AND estatus = 1 LIMIT 1',
+                    [solicitud_id]
+                );
+                if (diagRows.length > 0) {
+                    const [diagArtRows] = await db.query(`
+                        SELECT 
+                            a.arteria_nombre,
+                            les.nombre AS lesion_diag,
+                            seg.nombre AS segmento_diag,
+                            flu.nombre AS flujo_diag
+                        FROM cateterismo_detalle_arterias a
+                        LEFT JOIN catalogo_hemodinamia les ON a.lesion_id = les.id
+                        LEFT JOIN catalogo_hemodinamia seg ON a.segmento_id = seg.id
+                        LEFT JOIN catalogo_hemodinamia flu ON a.flujo_id = flu.id
+                        WHERE a.cateterismo_id = ?
+                    `, [diagRows[0].id]);
+
+                    diagArtRows.forEach(da => {
+                        diagArteriasMap[da.arteria_nombre] = da;
+                    });
+                }
+            } catch (errDiag) {
+                console.error("Error obteniendo datos de diagnóstico complementario:", errDiag);
+            }
 
             // 1. OBTENER MAESTRO TERAPÉUTICO
             const [terapeuticoResult] = await db.query(`
@@ -773,6 +878,70 @@ reporteCaterismo: async (req, res) => {
             let arteriasDetalle = [];
 
             if (terapeuticoMaster) {
+                // 1.1 RESOLVER NOMBRES DE MATERIALES DESDE tipo_general_materiales
+                let materialesIds = new Set();
+                const addMatId = (id) => {
+                    if (id && !isNaN(id)) materialesIds.add(Number(id));
+                };
+
+                addMatId(terapeuticoMaster.cateteres_id);
+                addMatId(terapeuticoMaster.guias_id);
+                addMatId(terapeuticoMaster.contrastes_id);
+                addMatId(terapeuticoMaster.accseso_vascular_id);
+                addMatId(terapeuticoMaster.balones_id);
+                addMatId(terapeuticoMaster.stent_id);
+
+                const parseMultiMaterials = (val) => {
+                    if (!val) return [];
+                    try {
+                        const arr = typeof val === 'string' ? JSON.parse(val) : val;
+                        if (Array.isArray(arr)) {
+                            return arr.map(item => {
+                                if (typeof item === 'object' && item !== null) {
+                                    if (item.value) addMatId(item.value);
+                                    if (item.id) addMatId(item.id);
+                                    return item.label || item.nombre || item.value;
+                                }
+                                addMatId(item);
+                                return item;
+                            });
+                        }
+                    } catch (e) {}
+                    return [];
+                };
+
+                const rawMeds = parseMultiMaterials(terapeuticoMaster.medicamentos_utilizados_id);
+                const rawMats = parseMultiMaterials(terapeuticoMaster.material_medico_quirurgico_id);
+
+                let materialMap = {};
+                if (materialesIds.size > 0) {
+                    try {
+                        const [matRows] = await db.query(
+                            'SELECT id, nombre, tipo FROM tipo_general_materiales WHERE id IN (?)',
+                            [[...materialesIds]]
+                        );
+                        matRows.forEach(m => { materialMap[m.id] = m.nombre; });
+                    } catch (errMat) {
+                        console.error("Error al obtener tipo_general_materiales:", errMat);
+                    }
+                }
+
+                terapeuticoMaster.cateteres_nombre = materialMap[terapeuticoMaster.cateteres_id] || '';
+                terapeuticoMaster.guias_nombre = materialMap[terapeuticoMaster.guias_id] || '';
+                terapeuticoMaster.contrastes_nombre = materialMap[terapeuticoMaster.contrastes_id] || '';
+                terapeuticoMaster.accseso_vascular_nombre = materialMap[terapeuticoMaster.accseso_vascular_id] || '';
+                terapeuticoMaster.balones_nombre = materialMap[terapeuticoMaster.balones_id] || '';
+                terapeuticoMaster.stent_nombre = materialMap[terapeuticoMaster.stent_id] || '';
+
+                terapeuticoMaster.medicamentos_utilizados_nombres = rawMeds.map(item => {
+                    if (typeof item === 'number' || !isNaN(item)) return materialMap[item] || item;
+                    return item;
+                });
+                terapeuticoMaster.material_quirurgico_nombres = rawMats.map(item => {
+                    if (typeof item === 'number' || !isNaN(item)) return materialMap[item] || item;
+                    return item;
+                });
+
                 // 2. ARTERIAS TRATADAS
                 const [detalleResult] = await db.query(`
                     SELECT 
@@ -818,14 +987,20 @@ reporteCaterismo: async (req, res) => {
                 terapeuticoMaster.intervenciones_realizadas = intervencionesIds.map(id => catalogosMap[id] || id);
                 terapeuticoMaster.complicaciones_procedimiento = complicacionesProcIds.map(id => catalogosMap[id] || id);
 
-                arteriasDetalle = arteriasConTipos.map(art => ({
-                    arteria_nombre: art.arteria_nombre,
-                    tecnica: art.tecnica_hemodinamia || '',
-                    medina: art.medina_hemodinamia || '',
-                    lesion_residual: art.lesion_residual_hemodinamia || '',
-                    flujo: art.flujo_nombre || (catalogosMap[art.flujo_hemodinamia] || art.flujo_hemodinamia || ''),
-                    tipos_lesion: (art.tipos_ids || []).map(id => catalogosMap[id] || id)
-                }));
+                arteriasDetalle = arteriasConTipos.map(art => {
+                    const diagInfo = diagArteriasMap[art.arteria_nombre] || {};
+                    return {
+                        arteria_nombre: art.arteria_nombre,
+                        tecnica: art.tecnica_hemodinamia || '',
+                        medina: art.medina_hemodinamia || '',
+                        lesion_residual: art.lesion_residual_hemodinamia || '',
+                        flujo: art.flujo_nombre || (catalogosMap[art.flujo_hemodinamia] || art.flujo_hemodinamia || ''),
+                        tipos_lesion: (art.tipos_ids || []).map(id => catalogosMap[id] || id),
+                        diag_lesion: diagInfo.lesion_diag || '',
+                        diag_segmento: diagInfo.segmento_diag || '',
+                        diag_flujo: diagInfo.flujo_diag || ''
+                    };
+                });
             }
 
             // 3. EXAMEN FÍSICO Y SIGNOS VITALES
@@ -853,9 +1028,13 @@ reporteCaterismo: async (req, res) => {
                         fecha_nacimiento: pacienteData.fecha_nacimiento,
                         genero: pacienteData.genero,
                         telefono_celular: pacienteData.telefono_celular,
+                        telefono_local: pacienteData.telefono_local,
+                        telefono: pacienteData.telefono || pacienteData.telefono_celular || pacienteData.telefono_local || '',
                         codificacion_buen_gobierno: pacienteData.codificacion_buen_gobierno,
                         historia: pacienteData.codificacion_buen_gobierno || pacienteData.historia || '',
-                        procedimiento: pacienteData.procedimiento
+                        procedimiento: pacienteData.procedimiento,
+                        diagnostico: pacienteData.diagnostico || '',
+                        numero_cateterismo: numeroCateterismo || ''
                     },
                     terapeutico: terapeuticoMaster ? {
                         ...terapeuticoMaster,

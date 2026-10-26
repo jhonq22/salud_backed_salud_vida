@@ -295,10 +295,146 @@ const CrudListaTipoController = {
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
+    },
+
+    // ==========================================
+    // SECCIÓN: MATERIALES USADOS (tipo_general_materiales)
+    // ==========================================
+
+    getMaterialesUsados: async (req, res) => {
+        try {
+            const [rows] = await db.query(
+                'SELECT * FROM tipo_general_materiales ORDER BY tipo ASC, orden ASC, nombre ASC'
+            );
+            res.json(rows);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    getTiposMaterialesUsados: async (req, res) => {
+        try {
+            const [rows] = await db.query(
+                'SELECT DISTINCT tipo FROM tipo_general_materiales WHERE tipo IS NOT NULL AND tipo != "" ORDER BY tipo ASC'
+            );
+            res.json(rows);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    getMaterialesPorTipo: async (req, res) => {
+        const { tipo } = req.params;
+        try {
+            const [rows] = await db.query(
+                `SELECT id AS value, id, nombre AS label, nombre, tipo, orden 
+                 FROM tipo_general_materiales 
+                 WHERE tipo = ? AND estatus = 1 
+                 ORDER BY orden ASC, nombre ASC`,
+                [tipo]
+            );
+            res.json(rows);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    saveMaterialUsado: async (req, res) => {
+        const { id, nombre, tipo, orden, estatus, audit_usu_id, audit_dep_id } = req.body;
+
+        if (!nombre || !nombre.trim()) {
+            return res.status(400).json({ error: 'El nombre del material es obligatorio' });
+        }
+        if (!tipo || !tipo.trim()) {
+            return res.status(400).json({ error: 'El tipo de material es obligatorio' });
+        }
+
+        const parsedOrden = parseInt(orden, 10);
+        if (isNaN(parsedOrden)) {
+            return res.status(400).json({ error: 'El orden debe ser un número entero' });
+        }
+
+        const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
+
+        try {
+            // Validar que el tipo seleccionado exista en la base de datos
+            const [tipoExiste] = await db.query(
+                'SELECT 1 FROM tipo_general_materiales WHERE tipo = ? LIMIT 1',
+                [tipo.trim()]
+            );
+            if (tipoExiste.length === 0) {
+                return res.status(400).json({ error: 'El tipo seleccionado no es válido o no está registrado' });
+            }
+
+            // Validar si ya existe un material con el mismo nombre y tipo activo (excluyendo el actual)
+            const [existe] = await db.query(
+                'SELECT id FROM tipo_general_materiales WHERE LOWER(nombre) = LOWER(?) AND tipo = ? AND id != ? AND estatus = 1',
+                [nombre.trim(), tipo.trim(), id || 0]
+            );
+
+            if (existe.length > 0) {
+                return res.status(400).json({ error: 'Ya existe un material activo con este nombre en la categoría seleccionada' });
+            }
+
+            const estatusVal = estatus !== undefined && estatus !== null ? (Number(estatus) === 1 ? 1 : 0) : 1;
+
+            if (id) {
+                // Modo Edición
+                await db.query(
+                    `UPDATE tipo_general_materiales 
+                     SET nombre = ?, tipo = ?, orden = ?, estatus = ?, fecha_actualizacion = NOW(),
+                         audit_usu_id = COALESCE(?, audit_usu_id),
+                         audit_ip = COALESCE(?, audit_ip),
+                         audit_dep_id = COALESCE(?, audit_dep_id)
+                     WHERE id = ?`,
+                    [nombre.trim(), tipo.trim(), parsedOrden, estatusVal, audit_usu_id || null, clientIp, audit_dep_id || null, id]
+                );
+                return res.json({ message: 'Material actualizado correctamente' });
+            } else {
+                // Modo Creación
+                const [result] = await db.query(
+                    `INSERT INTO tipo_general_materiales 
+                     (nombre, tipo, orden, estatus, fecha_creacion, fecha_actualizacion, audit_usu_id, audit_ip, audit_dep_id) 
+                     VALUES (?, ?, ?, ?, NOW(), NOW(), ?, ?, ?)`,
+                    [nombre.trim(), tipo.trim(), parsedOrden, estatusVal, audit_usu_id || null, clientIp, audit_dep_id || null]
+                );
+                return res.status(201).json({
+                    message: 'Material creado con éxito',
+                    id: result.insertId
+                });
+            }
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    deleteMaterialUsado: async (req, res) => {
+        const { id } = req.params;
+        const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
+        try {
+            await db.query(
+                'UPDATE tipo_general_materiales SET estatus = 0, fecha_actualizacion = NOW(), audit_ip = COALESCE(?, audit_ip) WHERE id = ?',
+                [clientIp, id]
+            );
+            res.json({ message: 'Material desactivado con éxito' });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    activarMaterialUsado: async (req, res) => {
+        const { id } = req.params;
+        const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
+        try {
+            await db.query(
+                'UPDATE tipo_general_materiales SET estatus = 1, fecha_actualizacion = NOW(), audit_ip = COALESCE(?, audit_ip) WHERE id = ?',
+                [clientIp, id]
+            );
+            res.json({ message: 'Material activado con éxito' });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
     }
-
-
-
 };
 
 

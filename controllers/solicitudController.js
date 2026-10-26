@@ -42,10 +42,14 @@ const getSolicitudByPacienteId = async (req, res) => {
         const sql = `
             SELECT 
                 s.*, 
-                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
+                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular, p.codificacion_buen_gobierno,
+                p.sexo,
+                DATE_FORMAT(p.fecha_nacimiento, '%d/%m/%Y') AS fecha_nacimiento,
+                p.edad,
                 s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
-                DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_formateada
+                DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_formateada,
+                DATE_FORMAT(s.fecha_cita, '%d/%m/%Y') AS fecha_cita
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
             LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
@@ -67,11 +71,15 @@ const getSolicitudById = async (req, res) => {
         const sql = `
             SELECT 
                 s.*, 
-                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
+                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular, p.codificacion_buen_gobierno,
+                p.sexo,
+                DATE_FORMAT(p.fecha_nacimiento, '%d/%m/%Y') AS fecha_nacimiento,
+                p.edad,
                 s.tipo_operacion_id,
                 s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
-                DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_formateada
+                DATE_FORMAT(s.fecha_creacion, '%e de %M de %Y') AS fecha_formateada,
+                DATE_FORMAT(s.fecha_cita, '%d/%m/%Y') AS fecha_cita
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
             LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
@@ -95,9 +103,13 @@ const getSolicitudesPendientesAreaAdministrativa = async (req, res) => {
         const sql = `
             SELECT 
                 s.*, 
-                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
+                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular, p.codificacion_buen_gobierno,
+                p.sexo,
+                DATE_FORMAT(p.fecha_nacimiento, '%d/%m/%Y') AS fecha_nacimiento,
+                p.edad,
                 s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
+                DATE_FORMAT(s.fecha_cita, '%d/%m/%Y') AS fecha_cita,
                 DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
@@ -131,8 +143,12 @@ const getSolicitudesPendientesPorCentro = async (req, res) => {
             SELECT 
                 s.*, 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular, p.codificacion_buen_gobierno,
+                p.sexo,
+                DATE_FORMAT(p.fecha_nacimiento, '%d/%m/%Y') AS fecha_nacimiento,
+                p.edad,
                 s.tipo_marca_paso_id, s.observacion_general,
                 es.nombre_estatus AS estatus_nombre,
+                DATE_FORMAT(s.fecha_cita, '%d/%m/%Y') AS fecha_cita,
                 DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
@@ -182,12 +198,17 @@ const getSolicitudesOperados = async (req, res) => {
             SELECT 
                 s.*, 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular, p.codificacion_buen_gobierno,
+                p.sexo,
+                DATE_FORMAT(p.fecha_nacimiento, '%d/%m/%Y') AS fecha_nacimiento,
+                p.edad,
                 s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
                 rm.primerNombre AS medico_nombre,
                 rm.primerApellido AS medico_apellido,
                 tp.tipo_operacion as operacion,
                 DATE_FORMAT(s.fecha_operacion, '%e de %M de %Y') AS fecha_operacion,
+                DATE_FORMAT(s.fecha_operacion, '%d/%m/%Y') AS fecha_intervencion,
+                DATE_FORMAT(s.fecha_cita, '%d/%m/%Y') AS fecha_cita,
                 DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
@@ -243,12 +264,17 @@ const getSolicitudesEstatusDinamico = async (req, res) => {
             SELECT 
                 s.*, 
                 p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular, p.codificacion_buen_gobierno,
+                p.sexo,
+                DATE_FORMAT(p.fecha_nacimiento, '%d/%m/%Y') AS fecha_nacimiento,
+                p.edad,
                 s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
                 rm.primerNombre AS medico_nombre,
                 rm.primerApellido AS medico_apellido,
                 tp.tipo_operacion as operacion,
                 DATE_FORMAT(s.fecha_operacion, '%e de %M de %Y') AS fecha_operacion,
+                DATE_FORMAT(s.fecha_operacion, '%d/%m/%Y') AS fecha_intervencion,
+                DATE_FORMAT(s.fecha_cita, '%d/%m/%Y') AS fecha_cita,
                 DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
@@ -309,9 +335,13 @@ const getSolicitudesPendientesAreaMedica = async (req, res) => {
         let sql = `
             SELECT 
                 s.*, 
-                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
+                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular, p.codificacion_buen_gobierno,
+                p.sexo,
+                DATE_FORMAT(p.fecha_nacimiento, '%d/%m/%Y') AS fecha_nacimiento,
+                p.edad,
                 s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
+                DATE_FORMAT(s.fecha_cita, '%d/%m/%Y') AS fecha_cita,
                 DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id
@@ -375,9 +405,13 @@ const getSolicitudesPendientesAreaMedicaOperados = async (req, res) => {
         let sql = `
             SELECT 
                 s.*, 
-                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular,
+                p.primer_nombre, p.primer_apellido, p.cedula, p.correo, p.telefono_celular, p.codificacion_buen_gobierno,
+                p.sexo,
+                DATE_FORMAT(p.fecha_nacimiento, '%d/%m/%Y') AS fecha_nacimiento,
+                p.edad,
                 s.tipo_marca_paso_id,
                 es.nombre_estatus AS estatus_nombre,
+                DATE_FORMAT(s.fecha_cita, '%d/%m/%Y') AS fecha_cita,
                 DATE_FORMAT(s.fecha_cita, '%e de %M de %Y') AS fecha_solicitud
             FROM registrar_solicitud_pacientes s
             INNER JOIN pacientes p ON s.paciente_id = p.id

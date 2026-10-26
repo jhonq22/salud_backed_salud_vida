@@ -58,6 +58,21 @@ router.post('/modelos', CrudListaTipoController.saveModelo);
 // Desactivar
 router.delete('/modelos/:id', CrudListaTipoController.deleteModelo);
 
+// ==========================================
+// SECCIÓN: MATERIALES USADOS (tipo_general_materiales)
+// ==========================================
 
+// Listar todos los materiales usados
+router.get('/materiales-usados', CrudListaTipoController.getMaterialesUsados);
+// Listar tipos únicos registrados
+router.get('/materiales-usados/tipos', CrudListaTipoController.getTiposMaterialesUsados);
+// Listar materiales activos por tipo
+router.get('/materiales-usados/tipo/:tipo', CrudListaTipoController.getMaterialesPorTipo);
+// Guardar o Actualizar
+router.post('/materiales-usados', CrudListaTipoController.saveMaterialUsado);
+// Desactivar (estatus = 0)
+router.delete('/materiales-usados/:id', CrudListaTipoController.deleteMaterialUsado);
+// Activar (estatus = 1)
+router.patch('/materiales-usados/:id/activar', CrudListaTipoController.activarMaterialUsado);
 
 module.exports = router;

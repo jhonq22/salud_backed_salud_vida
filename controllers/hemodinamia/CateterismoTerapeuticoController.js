@@ -10,8 +10,25 @@ const db = require('../../config/db');
  * GUARDAR O ACTUALIZAR CATETERISMO TERAPÉUTICO (UPSERT MAESTRO-DETALLE)
  */
 const saveTerapeutico = async (req, res) => {
-    // 1. Extraemos observaciones del body
-    const { solicitud_paciente_id, arterias_terapeuticas, observaciones } = req.body;
+    const { 
+        solicitud_paciente_id, 
+        arterias_terapeuticas, 
+        observaciones,
+        cateteres_id,
+        guias_id,
+        otros_guias,
+        contrastes_id,
+        otros_contrastes,
+        accseso_vascular_id,
+        otros_vascular_acccessos,
+        cantidad,
+        balones_id,
+        stent_id,
+        medicamentos_utilizados_id,
+        otros_medicamentos_utilizados,
+        material_medico_quirurgico_id,
+        syntax
+    } = req.body;
 
     if (!solicitud_paciente_id) {
         return res.status(400).json({ message: "El solicitud_paciente_id es obligatorio" });
@@ -23,14 +40,66 @@ const saveTerapeutico = async (req, res) => {
             [solicitud_paciente_id]
         );
 
+        let medicamentosJson = null;
+        if (medicamentos_utilizados_id) {
+            medicamentosJson = typeof medicamentos_utilizados_id === 'string' 
+                ? medicamentos_utilizados_id 
+                : JSON.stringify(medicamentos_utilizados_id);
+        }
+
+        let materialQuirurgicoJson = null;
+        if (material_medico_quirurgico_id) {
+            materialQuirurgicoJson = typeof material_medico_quirurgico_id === 'string' 
+                ? material_medico_quirurgico_id 
+                : JSON.stringify(material_medico_quirurgico_id);
+        }
+
+        const parsedCantidad = (cantidad !== null && cantidad !== undefined && cantidad !== '') 
+            ? parseInt(cantidad, 10) : null;
+        const parsedSyntax = (syntax !== null && syntax !== undefined && syntax !== '') 
+            ? parseInt(syntax, 10) : null;
+
         let terapeuticoId;
 
         if (exist.length > 0) {
             terapeuticoId = exist[0].id;
-            // 2. Actualizamos incluyendo observaciones
             await db.query(
-                'UPDATE cateterismo_terapeutico_hemodinamia SET observaciones = ?, fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?',
-                [observaciones || null, terapeuticoId]
+                `UPDATE cateterismo_terapeutico_hemodinamia SET 
+                    observaciones = ?,
+                    cateteres_id = ?,
+                    guias_id = ?,
+                    otros_guias = ?,
+                    contrastes_id = ?,
+                    otros_contrastes = ?,
+                    accseso_vascular_id = ?,
+                    otros_vascular_acccessos = ?,
+                    cantidad = ?,
+                    balones_id = ?,
+                    stent_id = ?,
+                    medicamentos_utilizados_id = ?,
+                    otros_medicamentos_utilizados = ?,
+                    material_medico_quirurgico_id = ?,
+                    syntax = ?,
+                    fecha_actualizacion = CURRENT_TIMESTAMP 
+                WHERE id = ?`,
+                [
+                    observaciones || null,
+                    cateteres_id || null,
+                    guias_id || null,
+                    otros_guias || null,
+                    contrastes_id || null,
+                    otros_contrastes || null,
+                    accseso_vascular_id || null,
+                    otros_vascular_acccessos || null,
+                    parsedCantidad,
+                    balones_id || null,
+                    stent_id || null,
+                    medicamentosJson,
+                    otros_medicamentos_utilizados || null,
+                    materialQuirurgicoJson,
+                    parsedSyntax,
+                    terapeuticoId
+                ]
             );
 
             await db.query(
@@ -38,10 +107,28 @@ const saveTerapeutico = async (req, res) => {
                 [terapeuticoId]
             );
         } else {
-            // 3. Insertamos incluyendo observaciones
             const [result] = await db.query(
-                'INSERT INTO cateterismo_terapeutico_hemodinamia (solicitud_paciente_id, observaciones) VALUES (?, ?)', 
-                [solicitud_paciente_id, observaciones || null]
+                `INSERT INTO cateterismo_terapeutico_hemodinamia 
+                (solicitud_paciente_id, observaciones, cateteres_id, guias_id, otros_guias, contrastes_id, otros_contrastes, accseso_vascular_id, otros_vascular_acccessos, cantidad, balones_id, stent_id, medicamentos_utilizados_id, otros_medicamentos_utilizados, material_medico_quirurgico_id, syntax) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+                [
+                    solicitud_paciente_id, 
+                    observaciones || null,
+                    cateteres_id || null,
+                    guias_id || null,
+                    otros_guias || null,
+                    contrastes_id || null,
+                    otros_contrastes || null,
+                    accseso_vascular_id || null,
+                    otros_vascular_acccessos || null,
+                    parsedCantidad,
+                    balones_id || null,
+                    stent_id || null,
+                    medicamentosJson,
+                    otros_medicamentos_utilizados || null,
+                    materialQuirurgicoJson,
+                    parsedSyntax
+                ]
             );
             terapeuticoId = result.insertId; 
         }
@@ -80,9 +167,8 @@ const getTerapeuticoBySolicitud = async (req, res) => {
     const { solicitudId } = req.params;
     
     try {
-        // 4. Agregamos observaciones al SELECT
         const [maestro] = await db.query(
-            'SELECT id, solicitud_paciente_id, observaciones FROM cateterismo_terapeutico_hemodinamia WHERE solicitud_paciente_id = ?', 
+            'SELECT * FROM cateterismo_terapeutico_hemodinamia WHERE solicitud_paciente_id = ?', 
             [solicitudId]
         );
 
@@ -90,7 +176,8 @@ const getTerapeuticoBySolicitud = async (req, res) => {
             return res.json({ arterias_terapeuticas: [] }); 
         }
 
-        const terapeuticoId = maestro[0].id;
+        const datosTerapeutico = maestro[0];
+        const terapeuticoId = datosTerapeutico.id;
 
         const [arterias] = await db.query(
             'SELECT * FROM cateterismo_terapeutico_detalle_arterias WHERE terapeutico_id = ?', 
@@ -103,9 +190,8 @@ const getTerapeuticoBySolicitud = async (req, res) => {
         }));
 
         res.json({
-            id: terapeuticoId,
-            solicitud_paciente_id: maestro[0].solicitud_paciente_id,
-            observaciones: maestro[0].observaciones || '', // 5. Devolvemos la data al front
+            ...datosTerapeutico,
+            observaciones: datosTerapeutico.observaciones || '',
             arterias_terapeuticas: arteriasFormateadas
         });
 
