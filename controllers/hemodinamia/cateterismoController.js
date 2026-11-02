@@ -1,9 +1,122 @@
 const db = require('../../config/db');
 
+// --- HELPERS DE SERIALIZACIÓN Y NORMALIZACIÓN DE INSUMOS JSON ---
+const parseRawJsonInput = (rawInput) => {
+    if (rawInput === null || rawInput === undefined || rawInput === '') return [];
+    let parsed = rawInput;
+    if (typeof rawInput === 'string') {
+        const trimmed = rawInput.trim();
+        if (!trimmed) return [];
+        try {
+            parsed = JSON.parse(trimmed);
+        } catch (e) {
+            return !isNaN(Number(trimmed)) ? [Number(trimmed)] : [];
+        }
+    }
+    if (Array.isArray(parsed)) return parsed;
+    if (typeof parsed === 'object' && parsed !== null) return [parsed];
+    if (typeof parsed === 'number' || (typeof parsed === 'string' && !isNaN(Number(parsed)))) {
+        return [Number(parsed)];
+    }
+    return [];
+};
+
+const serializeInsumoJson = (rawInput, tipo = 'general') => {
+    const arr = parseRawJsonInput(rawInput);
+    if (arr.length === 0) return null;
+
+    const normalized = arr.map(item => {
+        const isObj = item !== null && typeof item === 'object';
+        const rawId = isObj ? (item.id ?? item.value ?? null) : item;
+        const id = (rawId !== null && rawId !== undefined && rawId !== '' && !isNaN(Number(rawId)))
+            ? Number(rawId)
+            : rawId;
+        const label = isObj ? String(item.label ?? item.nombre ?? '').trim() : '';
+        const rawCant = isObj ? item.cantidad : 1;
+        const cantidad = (rawCant !== undefined && rawCant !== null && rawCant !== '' && !isNaN(Number(rawCant)) && Number(rawCant) > 0)
+            ? Number(rawCant)
+            : 1;
+
+        if (id === null && !label) return null;
+
+        if (tipo === 'cateteres') {
+            return {
+                id,
+                label,
+                cantidad,
+                medida1: isObj ? String(item.medida1 ?? '').trim() : '',
+                medida2: isObj ? String(item.medida2 ?? '').trim() : '',
+                unidad: 'FR'
+            };
+        }
+
+        if (tipo === 'balones') {
+            return {
+                id,
+                label,
+                cantidad,
+                medida1: isObj ? String(item.medida1 ?? '').trim() : '',
+                medida2: isObj ? String(item.medida2 ?? '').trim() : ''
+            };
+        }
+
+        return {
+            id,
+            label,
+            cantidad
+        };
+    }).filter(Boolean);
+
+    return normalized.length > 0 ? JSON.stringify(normalized) : null;
+};
+
+const normalizeInsumoJson = (rawDbVal, tipo = 'general', catalogMap = {}) => {
+    const arr = parseRawJsonInput(rawDbVal);
+    if (arr.length === 0) return [];
+
+    return arr.map(item => {
+        const isObj = item !== null && typeof item === 'object';
+        const rawId = isObj ? (item.id ?? item.value ?? null) : item;
+        const id = (rawId !== null && rawId !== undefined && rawId !== '' && !isNaN(Number(rawId)))
+            ? Number(rawId)
+            : rawId;
+        const label = String((isObj ? (item.label ?? item.nombre) : '') || catalogMap[id] || '').trim();
+        const rawCant = isObj ? item.cantidad : 1;
+        const cantidad = (rawCant !== undefined && rawCant !== null && rawCant !== '' && !isNaN(Number(rawCant)) && Number(rawCant) > 0)
+            ? Number(rawCant)
+            : 1;
+        const medida1 = isObj ? String(item.medida1 ?? '').trim() : '';
+        const medida2 = isObj ? String(item.medida2 ?? '').trim() : '';
+
+        if (id === null && !label) return null;
+
+        const baseObj = { id, label, cantidad, medida1, medida2 };
+        if (tipo === 'cateteres') {
+            baseObj.unidad = (isObj && item.unidad) ? String(item.unidad) : 'FR';
+        }
+        return baseObj;
+    }).filter(Boolean);
+};
+
+const collectMissingMaterialIds = (fieldsValues) => {
+    const ids = new Set();
+    fieldsValues.forEach(rawVal => {
+        const arr = parseRawJsonInput(rawVal);
+        arr.forEach(item => {
+            const isObj = item !== null && typeof item === 'object';
+            const hasLabel = isObj && String(item.label ?? item.nombre ?? '').trim() !== '';
+            const rawId = isObj ? (item.id ?? item.value) : item;
+            if (!hasLabel && rawId !== null && rawId !== undefined && rawId !== '' && !isNaN(Number(rawId))) {
+                ids.add(Number(rawId));
+            }
+        });
+    });
+    return [...ids];
+};
+
 // Guardar o Actualizar Cateterismo Diagnóstico (Maestro - Detalle)
 const saveCateterismo = async (req, res) => {
     const {
-        solicitud_paciente_id, 
         dominancia_id, 
         descripcion,
         complicaciones_procedimiento, // Se recibe como array para ser JSON
@@ -22,8 +135,11 @@ const saveCateterismo = async (req, res) => {
         otros_medicamentos_utilizados,
         material_medico_quirurgico_id,
         syntax,
+        cat,
         arterias 
     } = req.body;
+
+    const solicitud_paciente_id = req.body.solicitud_paciente_id || req.params.solicitudId;
 
     if (!solicitud_paciente_id) {
         return res.status(400).json({ message: "El solicitud_paciente_id es obligatorio" });
@@ -42,8 +158,14 @@ const saveCateterismo = async (req, res) => {
         const conclusionesJson = conclusiones_id ? JSON.stringify(conclusiones_id) : null;
         // Se aplica stringify al MultiSelect
         const compProcedimientoJson = complicaciones_procedimiento ? JSON.stringify(complicaciones_procedimiento) : null;
-        const medicamentosJson = medicamentos_utilizados_id ? (typeof medicamentos_utilizados_id === 'string' ? medicamentos_utilizados_id : JSON.stringify(medicamentos_utilizados_id)) : null;
-        const materialQuirurgicoJson = material_medico_quirurgico_id ? (typeof material_medico_quirurgico_id === 'string' ? material_medico_quirurgico_id : JSON.stringify(material_medico_quirurgico_id)) : null;
+
+        // Serialización JSON de insumos y materiales múltiples
+        const cateteresJson = serializeInsumoJson(cateteres_id, 'cateteres');
+        const guiasJson = serializeInsumoJson(guias_id, 'general');
+        const contrastesJson = serializeInsumoJson(contrastes_id, 'general');
+        const ventriculografiaJson = serializeInsumoJson(ventriculografia_id, 'general');
+        const medicamentosJson = serializeInsumoJson(medicamentos_utilizados_id, 'general');
+        const materialQuirurgicoJson = serializeInsumoJson(material_medico_quirurgico_id, 'general');
 
         const parseNumOrNull = (val) => {
             if (val === undefined || val === null || val === '') return null;
@@ -53,6 +175,9 @@ const saveCateterismo = async (req, res) => {
 
         const parsedCantidad = parseNumOrNull(cantidad);
         const parsedSyntax = parseNumOrNull(syntax);
+        const parsedCat = (cat !== undefined && cat !== null && String(cat).trim() !== '')
+            ? String(cat).trim().slice(0, 50)
+            : null;
 
         if (exist.length > 0) {
             // 2. Si existe, hacemos UPDATE del maestro
@@ -78,6 +203,7 @@ const saveCateterismo = async (req, res) => {
                     otros_medicamentos_utilizados = ?,
                     material_medico_quirurgico_id = ?,
                     syntax = ?,
+                    cat = ?,
                     fecha_actualizacion = CURRENT_TIMESTAMP
                 WHERE id = ?`,
                 [
@@ -88,17 +214,18 @@ const saveCateterismo = async (req, res) => {
                     conclusionesJson,
                     conclusiones_otros || null,
                     sugerencia_diagnostico_id || null,
-                    cateteres_id || null,
-                    guias_id || null,
+                    cateteresJson,
+                    guiasJson,
                     otros_guias || null,
-                    contrastes_id || null,
+                    contrastesJson,
                     otros_contrastes || null,
                     parsedCantidad,
-                    ventriculografia_id || null,
-                    medicamentosJson,              // JSON stringified (MultiSelect)
+                    ventriculografiaJson,
+                    medicamentosJson,
                     otros_medicamentos_utilizados || null,
-                    materialQuirurgicoJson,        // JSON stringified (MultiSelect)
+                    materialQuirurgicoJson,
                     parsedSyntax,
+                    parsedCat,
                     cateterismoId
                 ]
             );
@@ -113,8 +240,8 @@ const saveCateterismo = async (req, res) => {
             // 4. Si no existe, hacemos INSERT del maestro
             const [result] = await db.query(
                 `INSERT INTO cateterismo_diagnostico_hemodinamia 
-                (solicitud_paciente_id, dominancia_id, descripcion, complicaciones_procedimiento, complicaciones_acceso, conclusiones_id, conclusiones_otros, sugerencia_diagnostico_id, cateteres_id, guias_id, otros_guias, contrastes_id, otros_contrastes, cantidad, ventriculografia_id, medicamentos_utilizados_id, otros_medicamentos_utilizados, material_medico_quirurgico_id, syntax) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+                (solicitud_paciente_id, dominancia_id, descripcion, complicaciones_procedimiento, complicaciones_acceso, conclusiones_id, conclusiones_otros, sugerencia_diagnostico_id, cateteres_id, guias_id, otros_guias, contrastes_id, otros_contrastes, cantidad, ventriculografia_id, medicamentos_utilizados_id, otros_medicamentos_utilizados, material_medico_quirurgico_id, syntax, cat) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
                 [
                     solicitud_paciente_id, 
                     dominancia_id || null, 
@@ -124,17 +251,18 @@ const saveCateterismo = async (req, res) => {
                     conclusionesJson,
                     conclusiones_otros || null,
                     sugerencia_diagnostico_id || null,
-                    cateteres_id || null,
-                    guias_id || null,
+                    cateteresJson,
+                    guiasJson,
                     otros_guias || null,
-                    contrastes_id || null,
+                    contrastesJson,
                     otros_contrastes || null,
                     parsedCantidad,
-                    ventriculografia_id || null,
-                    medicamentosJson,              // JSON stringified (MultiSelect)
+                    ventriculografiaJson,
+                    medicamentosJson,
                     otros_medicamentos_utilizados || null,
-                    materialQuirurgicoJson,        // JSON stringified (MultiSelect)
-                    parsedSyntax
+                    materialQuirurgicoJson,
+                    parsedSyntax,
+                    parsedCat
                 ]
             );
             
@@ -185,6 +313,32 @@ const getCateterismoBySolicitud = async (req, res) => {
         }
 
         const cateterismo = masterRows[0];
+
+        // Resolver labels faltantes desde tipo_general_materiales para retrocompatibilidad
+        const missingIds = collectMissingMaterialIds([
+            cateterismo.cateteres_id,
+            cateterismo.guias_id,
+            cateterismo.contrastes_id,
+            cateterismo.ventriculografia_id,
+            cateterismo.medicamentos_utilizados_id,
+            cateterismo.material_medico_quirurgico_id
+        ]);
+
+        const catalogMap = {};
+        if (missingIds.length > 0) {
+            const [matRows] = await db.query(
+                'SELECT id, nombre FROM tipo_general_materiales WHERE id IN (?)',
+                [missingIds]
+            );
+            matRows.forEach(m => { catalogMap[m.id] = m.nombre; });
+        }
+
+        cateterismo.cateteres_id = normalizeInsumoJson(cateterismo.cateteres_id, 'cateteres', catalogMap);
+        cateterismo.guias_id = normalizeInsumoJson(cateterismo.guias_id, 'general', catalogMap);
+        cateterismo.contrastes_id = normalizeInsumoJson(cateterismo.contrastes_id, 'general', catalogMap);
+        cateterismo.ventriculografia_id = normalizeInsumoJson(cateterismo.ventriculografia_id, 'general', catalogMap);
+        cateterismo.medicamentos_utilizados_id = normalizeInsumoJson(cateterismo.medicamentos_utilizados_id, 'general', catalogMap);
+        cateterismo.material_medico_quirurgico_id = normalizeInsumoJson(cateterismo.material_medico_quirurgico_id, 'general', catalogMap);
 
         // 2. Buscamos el detalle asociado al ID del maestro
         const [detailRows] = await db.query(

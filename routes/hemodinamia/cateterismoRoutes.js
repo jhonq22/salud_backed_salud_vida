@@ -4,6 +4,8 @@ const cateterismoController = require('../../controllers/hemodinamia/cateterismo
 
 // Cateterismo
 router.post('/', cateterismoController.saveCateterismo);
+router.put('/', cateterismoController.saveCateterismo);
+router.put('/:solicitudId', cateterismoController.saveCateterismo);
 router.get('/paciente/:solicitudId', cateterismoController.getCateterismoBySolicitud);
 
 // --- NUEVA RUTA ---

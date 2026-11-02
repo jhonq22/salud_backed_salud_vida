@@ -1,5 +1,90 @@
 const db = require('../../config/db');
 
+// --- HELPERS DE INSUMOS JSON PARA REPORTES DE HEMODINAMIA ---
+const parseInsumosReportRaw = (val, idSet = null) => {
+    if (val === null || val === undefined || val === '') return [];
+    let parsed = val;
+    if (typeof val === 'string') {
+        const trimmed = val.trim();
+        if (!trimmed) return [];
+        try {
+            parsed = JSON.parse(trimmed);
+        } catch (e) {
+            parsed = !isNaN(Number(trimmed)) ? [Number(trimmed)] : [];
+        }
+    }
+    const arr = Array.isArray(parsed) ? parsed : (parsed !== null ? [parsed] : []);
+    if (idSet) {
+        arr.forEach(item => {
+            const rawId = (item !== null && typeof item === 'object') ? (item.id ?? item.value) : item;
+            if (rawId !== null && rawId !== undefined && rawId !== '' && !isNaN(Number(rawId))) {
+                idSet.add(Number(rawId));
+            }
+        });
+    }
+    return arr;
+};
+
+const normalizeInsumoReportList = (arr, tipo = 'general', catalogMap = {}) => {
+    if (!Array.isArray(arr) || arr.length === 0) return [];
+    return arr.map(item => {
+        const isObj = item !== null && typeof item === 'object';
+        const rawId = isObj ? (item.id ?? item.value ?? null) : item;
+        const id = (rawId !== null && rawId !== undefined && rawId !== '' && !isNaN(Number(rawId)))
+            ? Number(rawId)
+            : rawId;
+        const label = String((isObj ? (item.label ?? item.nombre) : '') || catalogMap[id] || (id !== null && id !== undefined ? id : '')).trim();
+        if (!label) return null;
+
+        const rawCant = isObj ? item.cantidad : 1;
+        const cantidad = (rawCant !== undefined && rawCant !== null && rawCant !== '' && !isNaN(Number(rawCant)) && Number(rawCant) > 0)
+            ? Number(rawCant)
+            : 1;
+        const medida1 = isObj && item.medida1 !== undefined && item.medida1 !== null ? String(item.medida1).trim() : '';
+        const medida2 = isObj && item.medida2 !== undefined && item.medida2 !== null ? String(item.medida2).trim() : '';
+
+        const normalizedItem = { id, label, cantidad, medida1, medida2 };
+        if (tipo === 'cateteres') {
+            normalizedItem.unidad = (isObj && item.unidad) ? String(item.unidad).trim() : 'FR';
+        }
+        return normalizedItem;
+    }).filter(Boolean);
+};
+
+const formatInsumoReportList = (normArr, tipo = 'general', otrosVal = '') => {
+    const otrosClean = (otrosVal !== null && otrosVal !== undefined) ? String(otrosVal).trim() : '';
+    let otrosIncluded = false;
+
+    const formatted = (Array.isArray(normArr) ? normArr : []).map(item => {
+        let baseName = item.label;
+        if (otrosClean && baseName.toUpperCase() === 'OTROS') {
+            baseName = `OTROS (${otrosClean})`;
+            otrosIncluded = true;
+        }
+
+        let extra = '';
+        if (tipo === 'cateteres' && (item.medida1 || item.medida2)) {
+            const unidad = item.unidad || 'FR';
+            const m2Clean = item.medida2
+                ? item.medida2.replace(new RegExp('\\s*' + unidad + '$', 'i'), '').trim()
+                : '';
+            const medidasPart = [item.medida1, m2Clean ? `${m2Clean} ${unidad}` : ''].filter(Boolean).join(', ');
+            if (medidasPart) extra = ` [${medidasPart}]`;
+        } else if (tipo === 'balones' && (item.medida1 || item.medida2)) {
+            const medidasPart = [item.medida1, item.medida2].filter(Boolean).join(' x ');
+            if (medidasPart) extra = ` [${medidasPart}]`;
+        }
+
+        return `${baseName}${extra} (Cant: ${item.cantidad})`;
+    });
+
+    if (otrosClean && !otrosIncluded) {
+        formatted.push(`OTROS (${otrosClean})`);
+    }
+
+    return formatted;
+};
+
 const ReportesController = {
     /**
      * Obtiene la "Sábana" completa del paciente
@@ -543,6 +628,8 @@ reporteCaterismo: async (req, res) => {
                         ELSE p.sexo
                     END AS genero,
                     p.telefono_celular,
+                    p.telefono_local,
+                    COALESCE(NULLIF(p.telefono_celular, ''), NULLIF(p.telefono_local, ''), NULLIF(p.telefono_emergencia, ''), '') AS telefono,
                     p.codificacion_buen_gobierno,
                     ind.diagnostico,
                     s.medico_id,
@@ -623,6 +710,8 @@ reporteCaterismo: async (req, res) => {
                         if (c && typeof c === 'object') {
                             if (c.label) {
                                 conclusionesTextos.push(c.label);
+                            } else if (c.id || c.value) {
+                                idsToFetch.push(c.id || c.value);
                             }
                         } else if (c) {
                             idsToFetch.push(c);
@@ -655,66 +744,82 @@ reporteCaterismo: async (req, res) => {
                 }
                 cateterismoMaster.conclusion = conclusionFinal || '';
 
-                cateterismoMaster.complicacion = cateterismoMaster.complicacion_acceso_nombre || '';
-
-                // --- RESOLVER MATERIALES Y PARÁMETROS ADICIONALES ---
-                let diagMatIds = new Set();
-                const addDiagMatId = (id) => {
-                    if (id && !isNaN(id)) diagMatIds.add(Number(id));
-                };
-
-                addDiagMatId(cateterismoMaster.cateteres_id);
-                addDiagMatId(cateterismoMaster.guias_id);
-                addDiagMatId(cateterismoMaster.contrastes_id);
-                addDiagMatId(cateterismoMaster.ventriculografia_id);
-
-                const parseDiagMulti = (val) => {
-                    if (!val) return [];
+                // Resolver complicaciones_procedimiento (JSON) + complicaciones_acceso (INT)
+                let compProcLabels = [];
+                if (cateterismoMaster.complicaciones_procedimiento) {
                     try {
-                        const arr = typeof val === 'string' ? JSON.parse(val) : val;
-                        if (Array.isArray(arr)) {
-                            return arr.map(item => {
-                                if (typeof item === 'object' && item !== null) {
-                                    if (item.value) addDiagMatId(item.value);
-                                    if (item.id) addDiagMatId(item.id);
-                                    return item.label || item.nombre || item.value;
-                                }
-                                addDiagMatId(item);
-                                return item;
-                            });
+                        const rawCompProc = typeof cateterismoMaster.complicaciones_procedimiento === 'string'
+                            ? JSON.parse(cateterismoMaster.complicaciones_procedimiento)
+                            : cateterismoMaster.complicaciones_procedimiento;
+                        const compArr = Array.isArray(rawCompProc) ? rawCompProc : [rawCompProc];
+                        const compIdsToFetch = [];
+                        compArr.forEach(cp => {
+                            if (cp && typeof cp === 'object') {
+                                if (cp.label || cp.nombre) compProcLabels.push(String(cp.label || cp.nombre).trim());
+                                else if (cp.id || cp.value) compIdsToFetch.push(Number(cp.id || cp.value));
+                            } else if (cp && !isNaN(Number(cp))) {
+                                compIdsToFetch.push(Number(cp));
+                            } else if (typeof cp === 'string' && cp.trim()) {
+                                compProcLabels.push(cp.trim());
+                            }
+                        });
+                        if (compIdsToFetch.length > 0) {
+                            const [cpRows] = await db.query(
+                                'SELECT nombre FROM catalogo_hemodinamia WHERE id IN (?)',
+                                [compIdsToFetch]
+                            );
+                            compProcLabels.push(...cpRows.map(r => r.nombre));
                         }
-                    } catch (e) {}
-                    return [];
-                };
+                    } catch (eComp) {
+                        console.error('Error parseando complicaciones_procedimiento en diagnostico:', eComp);
+                    }
+                }
+                const compParts = [];
+                if (cateterismoMaster.complicacion_acceso_nombre) {
+                    compParts.push(cateterismoMaster.complicacion_acceso_nombre);
+                }
+                compProcLabels.filter(Boolean).forEach(lbl => {
+                    if (!compParts.some(existing => existing.toUpperCase() === lbl.toUpperCase())) {
+                        compParts.push(lbl);
+                    }
+                });
+                cateterismoMaster.complicacion = compParts.join(', ');
 
-                let diagMedicamentos = parseDiagMulti(cateterismoMaster.medicamentos_utilizados_id);
-                let diagMaterialesQuirurgicos = parseDiagMulti(cateterismoMaster.material_medico_quirurgico_id);
+                // --- RESOLVER MATERIALES Y PARÁMETROS ADICIONALES (JSON CON CANTIDAD Y MEDIDAS) ---
+                const diagMatIds = new Set();
+                const rawDiagCateteres = parseInsumosReportRaw(cateterismoMaster.cateteres_id, diagMatIds);
+                const rawDiagGuias = parseInsumosReportRaw(cateterismoMaster.guias_id, diagMatIds);
+                const rawDiagContrastes = parseInsumosReportRaw(cateterismoMaster.contrastes_id, diagMatIds);
+                const rawDiagVentriculografia = parseInsumosReportRaw(cateterismoMaster.ventriculografia_id, diagMatIds);
+                const rawDiagMeds = parseInsumosReportRaw(cateterismoMaster.medicamentos_utilizados_id, diagMatIds);
+                const rawDiagMats = parseInsumosReportRaw(cateterismoMaster.material_medico_quirurgico_id, diagMatIds);
 
+                const matMap = {};
                 if (diagMatIds.size > 0) {
                     try {
                         const [matRows] = await db.query(
                             'SELECT id, nombre, tipo FROM tipo_general_materiales WHERE id IN (?)',
                             [Array.from(diagMatIds)]
                         );
-                        const matMap = {};
-                        matRows.forEach(m => {
-                            matMap[m.id] = m.nombre;
-                        });
-
-                        cateterismoMaster.cateteres_nombre = matMap[cateterismoMaster.cateteres_id] || '';
-                        cateterismoMaster.guias_nombre = matMap[cateterismoMaster.guias_id] || '';
-                        cateterismoMaster.contrastes_nombre = matMap[cateterismoMaster.contrastes_id] || '';
-                        cateterismoMaster.ventriculografia_nombre = matMap[cateterismoMaster.ventriculografia_id] || '';
-
-                        diagMedicamentos = diagMedicamentos.map(m => (!isNaN(m) && matMap[m]) ? matMap[m] : m);
-                        diagMaterialesQuirurgicos = diagMaterialesQuirurgicos.map(m => (!isNaN(m) && matMap[m]) ? matMap[m] : m);
+                        matRows.forEach(m => { matMap[m.id] = m.nombre; });
                     } catch (errMat) {
-                        console.error("Error al obtener nombres de materiales en diagnóstico:", errMat);
+                        console.error('Error al obtener nombres de materiales en diagnostico:', errMat);
                     }
                 }
 
-                cateterismoMaster.medicamentos_utilizados_nombres = diagMedicamentos;
-                cateterismoMaster.material_quirurgico_nombres = diagMaterialesQuirurgicos;
+                cateterismoMaster.cateteres_detalle = normalizeInsumoReportList(rawDiagCateteres, 'cateteres', matMap);
+                cateterismoMaster.guias_detalle = normalizeInsumoReportList(rawDiagGuias, 'general', matMap);
+                cateterismoMaster.contrastes_detalle = normalizeInsumoReportList(rawDiagContrastes, 'general', matMap);
+                cateterismoMaster.ventriculografia_detalle = normalizeInsumoReportList(rawDiagVentriculografia, 'general', matMap);
+                cateterismoMaster.medicamentos_utilizados_detalle = normalizeInsumoReportList(rawDiagMeds, 'general', matMap);
+                cateterismoMaster.material_quirurgico_detalle = normalizeInsumoReportList(rawDiagMats, 'general', matMap);
+
+                cateterismoMaster.cateteres_nombre = formatInsumoReportList(cateterismoMaster.cateteres_detalle, 'cateteres').join('; ');
+                cateterismoMaster.guias_nombre = formatInsumoReportList(cateterismoMaster.guias_detalle, 'general', cateterismoMaster.otros_guias).join('; ');
+                cateterismoMaster.contrastes_nombre = formatInsumoReportList(cateterismoMaster.contrastes_detalle, 'general', cateterismoMaster.otros_contrastes).join('; ');
+                cateterismoMaster.ventriculografia_nombre = formatInsumoReportList(cateterismoMaster.ventriculografia_detalle, 'general').join('; ');
+                cateterismoMaster.medicamentos_utilizados_nombres = formatInsumoReportList(cateterismoMaster.medicamentos_utilizados_detalle, 'general', cateterismoMaster.otros_medicamentos_utilizados);
+                cateterismoMaster.material_quirurgico_nombres = formatInsumoReportList(cateterismoMaster.material_quirurgico_detalle, 'general');
             }
 
             // 3. OBTENER EXAMEN FÍSICO Y SIGNOS VITALES
@@ -742,6 +847,8 @@ reporteCaterismo: async (req, res) => {
                     fecha_nacimiento: pacienteData.fecha_nacimiento,
                     genero: pacienteData.genero,
                     telefono_celular: pacienteData.telefono_celular,
+                    telefono_local: pacienteData.telefono_local,
+                    telefono: pacienteData.telefono || pacienteData.telefono_celular || pacienteData.telefono_local || '',
                     codificacion_buen_gobierno: pacienteData.codificacion_buen_gobierno,
                     historia: pacienteData.codificacion_buen_gobierno,
                     diagnostico: pacienteData.diagnostico
@@ -833,10 +940,11 @@ reporteCaterismo: async (req, res) => {
             let diagArteriasMap = {};
             try {
                 const [diagRows] = await db.query(
-                    'SELECT id FROM cateterismo_diagnostico_hemodinamia WHERE solicitud_paciente_id = ? AND estatus = 1 LIMIT 1',
+                    'SELECT id, cat FROM cateterismo_diagnostico_hemodinamia WHERE solicitud_paciente_id = ? AND estatus = 1 LIMIT 1',
                     [solicitud_id]
                 );
                 if (diagRows.length > 0) {
+                    numeroCateterismo = diagRows[0].cat || '';
                     const [diagArtRows] = await db.query(`
                         SELECT 
                             a.arteria_nombre,
@@ -878,42 +986,18 @@ reporteCaterismo: async (req, res) => {
             let arteriasDetalle = [];
 
             if (terapeuticoMaster) {
-                // 1.1 RESOLVER NOMBRES DE MATERIALES DESDE tipo_general_materiales
-                let materialesIds = new Set();
-                const addMatId = (id) => {
-                    if (id && !isNaN(id)) materialesIds.add(Number(id));
-                };
+                // 1.1 RESOLVER NOMBRES DE MATERIALES Y PARÁMETROS (JSON CON CANTIDAD Y MEDIDAS)
+                const materialesIds = new Set();
+                const rawTerapCateteres = parseInsumosReportRaw(terapeuticoMaster.cateteres_id, materialesIds);
+                const rawTerapGuias = parseInsumosReportRaw(terapeuticoMaster.guias_id, materialesIds);
+                const rawTerapContrastes = parseInsumosReportRaw(terapeuticoMaster.contrastes_id, materialesIds);
+                const rawTerapAcceso = parseInsumosReportRaw(terapeuticoMaster.accseso_vascular_id, materialesIds);
+                const rawTerapBalones = parseInsumosReportRaw(terapeuticoMaster.balones_id, materialesIds);
+                const rawTerapStent = parseInsumosReportRaw(terapeuticoMaster.stent_id, materialesIds);
+                const rawMeds = parseInsumosReportRaw(terapeuticoMaster.medicamentos_utilizados_id, materialesIds);
+                const rawMats = parseInsumosReportRaw(terapeuticoMaster.material_medico_quirurgico_id, materialesIds);
 
-                addMatId(terapeuticoMaster.cateteres_id);
-                addMatId(terapeuticoMaster.guias_id);
-                addMatId(terapeuticoMaster.contrastes_id);
-                addMatId(terapeuticoMaster.accseso_vascular_id);
-                addMatId(terapeuticoMaster.balones_id);
-                addMatId(terapeuticoMaster.stent_id);
-
-                const parseMultiMaterials = (val) => {
-                    if (!val) return [];
-                    try {
-                        const arr = typeof val === 'string' ? JSON.parse(val) : val;
-                        if (Array.isArray(arr)) {
-                            return arr.map(item => {
-                                if (typeof item === 'object' && item !== null) {
-                                    if (item.value) addMatId(item.value);
-                                    if (item.id) addMatId(item.id);
-                                    return item.label || item.nombre || item.value;
-                                }
-                                addMatId(item);
-                                return item;
-                            });
-                        }
-                    } catch (e) {}
-                    return [];
-                };
-
-                const rawMeds = parseMultiMaterials(terapeuticoMaster.medicamentos_utilizados_id);
-                const rawMats = parseMultiMaterials(terapeuticoMaster.material_medico_quirurgico_id);
-
-                let materialMap = {};
+                const materialMap = {};
                 if (materialesIds.size > 0) {
                     try {
                         const [matRows] = await db.query(
@@ -922,25 +1006,27 @@ reporteCaterismo: async (req, res) => {
                         );
                         matRows.forEach(m => { materialMap[m.id] = m.nombre; });
                     } catch (errMat) {
-                        console.error("Error al obtener tipo_general_materiales:", errMat);
+                        console.error('Error al obtener tipo_general_materiales:', errMat);
                     }
                 }
 
-                terapeuticoMaster.cateteres_nombre = materialMap[terapeuticoMaster.cateteres_id] || '';
-                terapeuticoMaster.guias_nombre = materialMap[terapeuticoMaster.guias_id] || '';
-                terapeuticoMaster.contrastes_nombre = materialMap[terapeuticoMaster.contrastes_id] || '';
-                terapeuticoMaster.accseso_vascular_nombre = materialMap[terapeuticoMaster.accseso_vascular_id] || '';
-                terapeuticoMaster.balones_nombre = materialMap[terapeuticoMaster.balones_id] || '';
-                terapeuticoMaster.stent_nombre = materialMap[terapeuticoMaster.stent_id] || '';
+                terapeuticoMaster.cateteres_detalle = normalizeInsumoReportList(rawTerapCateteres, 'cateteres', materialMap);
+                terapeuticoMaster.guias_detalle = normalizeInsumoReportList(rawTerapGuias, 'general', materialMap);
+                terapeuticoMaster.contrastes_detalle = normalizeInsumoReportList(rawTerapContrastes, 'general', materialMap);
+                terapeuticoMaster.accseso_vascular_detalle = normalizeInsumoReportList(rawTerapAcceso, 'general', materialMap);
+                terapeuticoMaster.balones_detalle = normalizeInsumoReportList(rawTerapBalones, 'balones', materialMap);
+                terapeuticoMaster.stent_detalle = normalizeInsumoReportList(rawTerapStent, 'general', materialMap);
+                terapeuticoMaster.medicamentos_utilizados_detalle = normalizeInsumoReportList(rawMeds, 'general', materialMap);
+                terapeuticoMaster.material_quirurgico_detalle = normalizeInsumoReportList(rawMats, 'general', materialMap);
 
-                terapeuticoMaster.medicamentos_utilizados_nombres = rawMeds.map(item => {
-                    if (typeof item === 'number' || !isNaN(item)) return materialMap[item] || item;
-                    return item;
-                });
-                terapeuticoMaster.material_quirurgico_nombres = rawMats.map(item => {
-                    if (typeof item === 'number' || !isNaN(item)) return materialMap[item] || item;
-                    return item;
-                });
+                terapeuticoMaster.cateteres_nombre = formatInsumoReportList(terapeuticoMaster.cateteres_detalle, 'cateteres').join('; ');
+                terapeuticoMaster.guias_nombre = formatInsumoReportList(terapeuticoMaster.guias_detalle, 'general', terapeuticoMaster.otros_guias).join('; ');
+                terapeuticoMaster.contrastes_nombre = formatInsumoReportList(terapeuticoMaster.contrastes_detalle, 'general', terapeuticoMaster.otros_contrastes).join('; ');
+                terapeuticoMaster.accseso_vascular_nombre = formatInsumoReportList(terapeuticoMaster.accseso_vascular_detalle, 'general', terapeuticoMaster.otros_vascular_acccessos).join('; ');
+                terapeuticoMaster.balones_nombre = formatInsumoReportList(terapeuticoMaster.balones_detalle, 'balones').join('; ');
+                terapeuticoMaster.stent_nombre = formatInsumoReportList(terapeuticoMaster.stent_detalle, 'general').join('; ');
+                terapeuticoMaster.medicamentos_utilizados_nombres = formatInsumoReportList(terapeuticoMaster.medicamentos_utilizados_detalle, 'general', terapeuticoMaster.otros_medicamentos_utilizados);
+                terapeuticoMaster.material_quirurgico_nombres = formatInsumoReportList(terapeuticoMaster.material_quirurgico_detalle, 'general');
 
                 // 2. ARTERIAS TRATADAS
                 const [detalleResult] = await db.query(`
@@ -952,10 +1038,15 @@ reporteCaterismo: async (req, res) => {
                     WHERE a.terapeutico_id = ?
                 `, [terapeuticoMaster.id]);
 
-                // Recolectar IDs de catálogos para tipo_json_hemodinamia, intervenciones y complicaciones
-                let idsToFetch = new Set();
-                const addId = (id) => { if (id && !isNaN(id)) idsToFetch.add(Number(id)); };
-                const parseAndExtractIds = (jsonString) => {
+                // Recolectar IDs de catálogos para tipo_json_hemodinamia, intervenciones y complicaciones (soportando IDs u objetos)
+                const idsToFetch = new Set();
+                const addId = (item) => {
+                    const raw = (item !== null && typeof item === 'object') ? (item.id ?? item.value) : item;
+                    if (raw !== null && raw !== undefined && raw !== '' && !isNaN(Number(raw))) {
+                        idsToFetch.add(Number(raw));
+                    }
+                };
+                const parseAndExtractItems = (jsonString) => {
                     if (!jsonString) return [];
                     try {
                         const arr = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
@@ -966,16 +1057,24 @@ reporteCaterismo: async (req, res) => {
                     } catch (e) { return []; }
                     return [];
                 };
+                const resolveCatalogItemLabel = (item, map) => {
+                    if (item !== null && typeof item === 'object') {
+                        if (item.label || item.nombre) return String(item.label || item.nombre).trim();
+                        const rid = item.id ?? item.value;
+                        return map[rid] || (rid !== undefined && rid !== null ? String(rid) : '');
+                    }
+                    return map[item] || (item !== undefined && item !== null ? String(item) : '');
+                };
 
-                const intervencionesIds = parseAndExtractIds(terapeuticoMaster.intervencion_realizada_id);
-                const complicacionesProcIds = parseAndExtractIds(terapeuticoMaster.complicaciones_procedimiento_terapeutico);
+                const intervencionesItems = parseAndExtractItems(terapeuticoMaster.intervencion_realizada_id);
+                const complicacionesProcItems = parseAndExtractItems(terapeuticoMaster.complicaciones_procedimiento_terapeutico);
 
                 const arteriasConTipos = detalleResult.map(art => {
-                    const tipos_ids = parseAndExtractIds(art.tipo_json_hemodinamia);
-                    return { ...art, tipos_ids };
+                    const tipos_items = parseAndExtractItems(art.tipo_json_hemodinamia);
+                    return { ...art, tipos_items };
                 });
 
-                let catalogosMap = {};
+                const catalogosMap = {};
                 if (idsToFetch.size > 0) {
                     const [catRows] = await db.query(
                         'SELECT id, nombre FROM catalogo_hemodinamia WHERE id IN (?)',
@@ -984,8 +1083,8 @@ reporteCaterismo: async (req, res) => {
                     catRows.forEach(c => { catalogosMap[c.id] = c.nombre; });
                 }
 
-                terapeuticoMaster.intervenciones_realizadas = intervencionesIds.map(id => catalogosMap[id] || id);
-                terapeuticoMaster.complicaciones_procedimiento = complicacionesProcIds.map(id => catalogosMap[id] || id);
+                terapeuticoMaster.intervenciones_realizadas = intervencionesItems.map(i => resolveCatalogItemLabel(i, catalogosMap)).filter(Boolean);
+                terapeuticoMaster.complicaciones_procedimiento = complicacionesProcItems.map(i => resolveCatalogItemLabel(i, catalogosMap)).filter(Boolean);
 
                 arteriasDetalle = arteriasConTipos.map(art => {
                     const diagInfo = diagArteriasMap[art.arteria_nombre] || {};
@@ -995,7 +1094,7 @@ reporteCaterismo: async (req, res) => {
                         medina: art.medina_hemodinamia || '',
                         lesion_residual: art.lesion_residual_hemodinamia || '',
                         flujo: art.flujo_nombre || (catalogosMap[art.flujo_hemodinamia] || art.flujo_hemodinamia || ''),
-                        tipos_lesion: (art.tipos_ids || []).map(id => catalogosMap[id] || id),
+                        tipos_lesion: (art.tipos_items || []).map(i => resolveCatalogItemLabel(i, catalogosMap)).filter(Boolean),
                         diag_lesion: diagInfo.lesion_diag || '',
                         diag_segmento: diagInfo.segmento_diag || '',
                         diag_flujo: diagInfo.flujo_diag || ''

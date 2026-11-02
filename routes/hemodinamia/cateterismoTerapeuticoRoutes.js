@@ -10,6 +10,8 @@ const controller = require('../../controllers/hemodinamia/CateterismoTerapeutico
 
 // Guardar o Actualizar Arterias (Upsert)
 router.post('/', controller.saveTerapeutico);
+router.put('/', controller.saveTerapeutico);
+router.put('/:solicitudId', controller.saveTerapeutico);
 
 // Obtener datos de arterias guardadas
 // CAMBIO: :solicitudId -> :solicitudId
@@ -22,6 +24,7 @@ router.get('/paciente/:solicitudId', controller.getTerapeuticoBySolicitud);
 
 // Guardar o Actualizar Datos Generales (Upsert de Técnica, Complicaciones, etc.)
 router.post('/general', controller.saveTerapeuticoGeneral);
+router.put('/general', controller.saveTerapeuticoGeneral);
 
 // Obtener datos generales guardados
 // CAMBIO: :solicitudId -> :solicitudId

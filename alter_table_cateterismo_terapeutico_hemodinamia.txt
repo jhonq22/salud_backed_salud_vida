@@ -1,0 +1,27 @@
+-- =========================================================================
+-- QUERY ALTER TABLE: cateterismo_terapeutico_hemodinamia
+-- Nuevos campos para materiales utilizados, cantidades y syntax
+-- Fecha: 2026-10-25
+-- =========================================================================
+
+ALTER TABLE `cateterismo_terapeutico_hemodinamia`
+ADD COLUMN `cateteres_id` INT NULL DEFAULT NULL COMMENT 'tipo_general_materiales.tipo = CATETERES',
+ADD COLUMN `guias_id` INT NULL DEFAULT NULL COMMENT 'tipo_general_materiales.tipo = GUIAS',
+ADD COLUMN `otros_guias` VARCHAR(200) DEFAULT NULL,
+ADD COLUMN `contrastes_id` INT NULL DEFAULT NULL COMMENT 'tipo_general_materiales.tipo = CONTRASTE',
+ADD COLUMN `otros_contrastes` VARCHAR(200) DEFAULT NULL,
+ADD COLUMN `accseso_vascular_id` INT NULL DEFAULT NULL COMMENT 'tipo_general_materiales.tipo = ACCESO_VASCULAR',
+ADD COLUMN `otros_vascular_acccessos` VARCHAR(200) DEFAULT NULL,
+ADD COLUMN `cantidad` INT DEFAULT NULL,
+ADD COLUMN `balones_id` INT NULL DEFAULT NULL COMMENT 'tipo_general_materiales.tipo = BALONES',
+ADD COLUMN `stent_id` INT NULL DEFAULT NULL COMMENT 'tipo_general_materiales.tipo = STENT',
+ADD COLUMN `medicamentos_utilizados_id` JSON NULL DEFAULT NULL COMMENT 'tipo_general_materiales.tipo = MEDICAMENTOS_UTILIZADOS',
+ADD COLUMN `otros_medicamentos_utilizados` VARCHAR(200) DEFAULT NULL,
+ADD COLUMN `material_medico_quirurgico_id` JSON NULL DEFAULT NULL COMMENT 'tipo_general_materiales.tipo = MATERIAL_MEDICO_QUIRURGICO',
+ADD COLUMN `syntax` INT DEFAULT NULL,
+ADD COLUMN `cat` VARCHAR(50) DEFAULT NULL;
+
+
+-- 2. Si la tabla ya tenía los campos previos y solo se desea agregar el campo `cat`:
+ALTER TABLE `cateterismo_terapeutico_hemodinamia`
+ADD COLUMN `cat` VARCHAR(50) NULL DEFAULT NULL;
