@@ -932,9 +932,10 @@ const PacientesConSolicitudesActualizados = async (req, res) => {
         // Agregamos centro_salud_id a la desestructuración
         const { fechaInicio, fechaFin, centro_salud_id } = req.query;
 
-        // 2. Base de la consulta
+        // 2. Base de la consulta (histórico completo de pacientes actualizados en todas las fases)
         let sql = `
             SELECT
+                s.id as solicitud_id,
                 p.id as paciente_id, 
                 p.primer_nombre, 
                 p.primer_apellido, 
@@ -945,6 +946,10 @@ const PacientesConSolicitudesActualizados = async (req, res) => {
                 p.telefono_celular, 
                 p.telefono_local,
                 s.tipo_marca_paso_id, 
+                s.tipo_operacion_id,
+                s.marcapaso,
+                s.estatus_solicitud_id,
+                tp.tipo_operacion,
                 DATE_FORMAT(s.fecha_cita, '%d/%m/%y') AS fecha_cita,
                 es.nombre_estatus AS estatus_nombre,
                 cs.descripcion AS centro_salud_nombre
@@ -952,7 +957,8 @@ const PacientesConSolicitudesActualizados = async (req, res) => {
             LEFT JOIN pacientes p ON s.paciente_id = p.id
             LEFT JOIN estatus_solicitudes es ON s.estatus_solicitud_id = es.id
             LEFT JOIN lista_centro_salud cs ON s.centro_salud_id = cs.id
-            WHERE p.actualizado = 1 AND s.estatus_solicitud_id = 1
+            LEFT JOIN tipo_operaciones tp ON s.tipo_operacion_id = tp.id
+            WHERE p.actualizado = 1
         `;
 
         const params = [];

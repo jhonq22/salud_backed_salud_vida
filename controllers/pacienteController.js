@@ -125,7 +125,11 @@ const verInformacionPacientePorID = async (req, res) => {
                 pa.parroquia AS parroquia_nombre,
                 pais.nombre AS pais_nombre,
                 ne.estudio AS nivel_estudio_nombre,
-                et.etnia AS etnia_indigena_nombre
+                et.etnia AS etnia_indigena_nombre,
+                (SELECT s.id FROM registrar_solicitud_pacientes s WHERE s.paciente_id = p.id ORDER BY s.id DESC LIMIT 1) AS ultima_solicitud_id,
+                (SELECT s.tipo_operacion_id FROM registrar_solicitud_pacientes s WHERE s.paciente_id = p.id ORDER BY s.id DESC LIMIT 1) AS tipo_operacion_id,
+                (SELECT s.marcapaso FROM registrar_solicitud_pacientes s WHERE s.paciente_id = p.id ORDER BY s.id DESC LIMIT 1) AS marcapaso,
+                (SELECT s.estatus_solicitud_id FROM registrar_solicitud_pacientes s WHERE s.paciente_id = p.id ORDER BY s.id DESC LIMIT 1) AS estatus_solicitud_id
             FROM pacientes p
             LEFT JOIN estados e ON p.estado_id = e.id_estado
             LEFT JOIN municipios m ON p.municipio_id = m.id_municipio
