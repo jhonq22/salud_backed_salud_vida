@@ -52,24 +52,40 @@ const login = async (req, res) => {
 
         centrosSaludIds = centrosSaludIds.map(id => Number(id)).filter(id => !isNaN(id) && id > 0);
 
+        const isSuperAdmin = Number(user.rol_id) === 9;
+
         let centrosSaludDetalle = [];
-        if (centrosSaludIds.length > 0) {
-            const [centrosRows] = await db.query(
-                `SELECT id, descripcion FROM lista_centro_salud WHERE id IN (?) AND estatus = 1`,
-                [centrosSaludIds]
+        let centroActivo = null;
+
+        if (isSuperAdmin) {
+            const [allCentrosRows] = await db.query(
+                `SELECT id, descripcion FROM lista_centro_salud WHERE estatus = 1 ORDER BY id ASC`
             );
-            centrosSaludDetalle = centrosRows;
+            centrosSaludDetalle = allCentrosRows;
+            centroActivo = centrosSaludIds.length > 0
+                ? centrosSaludIds[0]
+                : (centrosSaludDetalle.length > 0 ? centrosSaludDetalle[0].id : 1);
+        } else {
+            if (centrosSaludIds.length > 0) {
+                const [centrosRows] = await db.query(
+                    `SELECT id, descripcion FROM lista_centro_salud WHERE id IN (?) AND estatus = 1`,
+                    [centrosSaludIds]
+                );
+                centrosSaludDetalle = centrosRows;
+            }
+
+            // Determinar centro activo:
+            // Si tiene solo 1 hospital, se selecciona automáticamente ese ID.
+            // Si tiene 2 o más y es médico (rol 4), centroActivo se deja null para requerir selección
+            if (centrosSaludIds.length === 1) {
+                centroActivo = centrosSaludIds[0];
+            } else if (centrosSaludIds.length > 1 && user.rol_id !== 4) {
+                centroActivo = centrosSaludIds[0];
+            }
         }
 
-        // Determinar centro activo:
-        // Si tiene solo 1 hospital, se selecciona automáticamente ese ID.
-        // Si tiene 2 o más y es médico (rol 4), centroActivo se deja null para requerir selección
-        let centroActivo = null;
-        if (centrosSaludIds.length === 1) {
-            centroActivo = centrosSaludIds[0];
-        } else if (centrosSaludIds.length > 1 && user.rol_id !== 4) {
-            centroActivo = centrosSaludIds[0];
-        }
+        const tieneMarcapaso = isSuperAdmin ? true : Boolean(user.marcapaso);
+        const tieneHemodinamia = isSuperAdmin ? true : Boolean(user.hemodinamia);
 
         // Generar Token
         const token = jwt.sign(
@@ -81,8 +97,8 @@ const login = async (req, res) => {
                 centro_salud_id: centroActivo,
                 centros_salud: centrosSaludDetalle,
                 multi_roles: multiRolesArray,
-                marcapaso: Boolean(user.marcapaso),
-                hemodinamia: Boolean(user.hemodinamia)
+                marcapaso: tieneMarcapaso,
+                hemodinamia: tieneHemodinamia
             },
             process.env.JWT_SECRET || 'secret_key_123',
             { expiresIn: '8h' }
@@ -102,8 +118,8 @@ const login = async (req, res) => {
                 centro_salud_id: centroActivo,
                 centros_salud: centrosSaludDetalle,
                 multi_roles: multiRolesArray,
-                marcapaso: Boolean(user.marcapaso),
-                hemodinamia: Boolean(user.hemodinamia)
+                marcapaso: tieneMarcapaso,
+                hemodinamia: tieneHemodinamia
             }
         });
     } catch (error) {
@@ -133,6 +149,9 @@ const normalizarCentroSalud = (centro_salud_id) => {
 // 2. CRUD: Crear Usuario
 const createUser = async (req, res) => {
     const { usuario, password, nombres, rol_id, centro_salud_id } = req.body;
+    if (Number(rol_id) === 9) {
+        return res.status(403).json({ error: 'El rol Super Admin no puede ser creado por el sistema.' });
+    }
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const centrosJSON = normalizarCentroSalud(centro_salud_id);
@@ -166,6 +185,7 @@ const getUsers = async (req, res) => {
             FROM users u 
             LEFT JOIN roles r ON u.rol_id = r.id
             LEFT JOIN multi_roles_medicos mrm ON u.id = mrm.usuario_id
+            WHERE u.rol_id != 9
         `);
 
         const [centros] = await db.query('SELECT id, descripcion FROM lista_centro_salud');
@@ -214,10 +234,13 @@ const getUsers = async (req, res) => {
 const updateUser = async (req, res) => {
     const { id } = req.params;
     const { nombres, rol_id, centro_salud_id, usuario } = req.body;
+    if (Number(rol_id) === 9) {
+        return res.status(403).json({ error: 'El rol Super Admin no puede ser asignado por el sistema.' });
+    }
     try {
         const centrosJSON = normalizarCentroSalud(centro_salud_id);
         await db.query(
-            'UPDATE users SET nombres = ?, rol_id = ?, centro_salud_id = ?, usuario = ? WHERE id = ?',
+            'UPDATE users SET nombres = ?, rol_id = ?, centro_salud_id = ?, usuario = ? WHERE id = ? AND rol_id != 9',
             [nombres, rol_id, centrosJSON, usuario, id]
         );
         res.json({ message: 'Usuario actualizado correctamente' });
@@ -243,7 +266,7 @@ const updatePassword = async (req, res) => {
 const deleteUser = async (req, res) => {
     const { id } = req.params;
     try {
-        await db.query('UPDATE users SET estatus = 0 WHERE id = ?', [id]);
+        await db.query('UPDATE users SET estatus = 0 WHERE id = ? AND rol_id != 9', [id]);
         res.json({ message: 'Usuario desactivado' });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -252,7 +275,7 @@ const deleteUser = async (req, res) => {
 
 // 7. Ver Roles
 const getRoles = async (req, res) => {
-    const [rows] = await db.query('SELECT * FROM roles WHERE estatus = 1');
+    const [rows] = await db.query('SELECT * FROM roles WHERE estatus = 1 AND id != 9');
     res.json(rows);
 };
 
