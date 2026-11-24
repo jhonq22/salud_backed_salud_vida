@@ -127,6 +127,11 @@ const saveTerapeutico = async (req, res) => {
     const { 
         arterias_terapeuticas, 
         observaciones,
+        conclusiones_id,
+        conclusiones_otros,
+        complicaciones_procedimiento_terapeutico,
+        complicaciones_acceso_terapeutico,
+        sugerencia_terapeuticas_id,
         cateteres_id,
         guias_id,
         otros_guias,
@@ -156,6 +161,11 @@ const saveTerapeutico = async (req, res) => {
             [solicitud_paciente_id]
         );
 
+        const conclusionesJson = (Array.isArray(conclusiones_id) && conclusiones_id.length > 0)
+            ? JSON.stringify(conclusiones_id) : null;
+        const compProcedimientoJson = (Array.isArray(complicaciones_procedimiento_terapeutico) && complicaciones_procedimiento_terapeutico.length > 0)
+            ? JSON.stringify(complicaciones_procedimiento_terapeutico) : null;
+
         // Serialización JSON de insumos y materiales múltiples
         const cateteresJson = serializeInsumoJson(cateteres_id, 'cateteres');
         const guiasJson = serializeInsumoJson(guias_id, 'general');
@@ -180,6 +190,11 @@ const saveTerapeutico = async (req, res) => {
             await db.query(
                 `UPDATE cateterismo_terapeutico_hemodinamia SET 
                     observaciones = ?,
+                    conclusiones_id = ?,
+                    conclusiones_otros = ?,
+                    complicaciones_procedimiento_terapeutico = ?,
+                    complicaciones_acceso_terapeutico = ?,
+                    sugerencia_terapeuticas_id = ?,
                     cateteres_id = ?,
                     guias_id = ?,
                     otros_guias = ?,
@@ -199,6 +214,11 @@ const saveTerapeutico = async (req, res) => {
                 WHERE id = ?`,
                 [
                     observaciones || null,
+                    conclusionesJson,
+                    conclusiones_otros || null,
+                    compProcedimientoJson,
+                    complicaciones_acceso_terapeutico || null,
+                    sugerencia_terapeuticas_id || null,
                     cateteresJson,
                     guiasJson,
                     otros_guias || null,
@@ -225,11 +245,16 @@ const saveTerapeutico = async (req, res) => {
         } else {
             const [result] = await db.query(
                 `INSERT INTO cateterismo_terapeutico_hemodinamia 
-                (solicitud_paciente_id, observaciones, cateteres_id, guias_id, otros_guias, contrastes_id, otros_contrastes, accseso_vascular_id, otros_vascular_acccessos, cantidad, balones_id, stent_id, medicamentos_utilizados_id, otros_medicamentos_utilizados, material_medico_quirurgico_id, syntax, cat) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+                (solicitud_paciente_id, observaciones, conclusiones_id, conclusiones_otros, complicaciones_procedimiento_terapeutico, complicaciones_acceso_terapeutico, sugerencia_terapeuticas_id, cateteres_id, guias_id, otros_guias, contrastes_id, otros_contrastes, accseso_vascular_id, otros_vascular_acccessos, cantidad, balones_id, stent_id, medicamentos_utilizados_id, otros_medicamentos_utilizados, material_medico_quirurgico_id, syntax, cat) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
                 [
                     solicitud_paciente_id, 
                     observaciones || null,
+                    conclusionesJson,
+                    conclusiones_otros || null,
+                    compProcedimientoJson,
+                    complicaciones_acceso_terapeutico || null,
+                    sugerencia_terapeuticas_id || null,
                     cateteresJson,
                     guiasJson,
                     otros_guias || null,
@@ -291,6 +316,11 @@ const getTerapeuticoBySolicitud = async (req, res) => {
 
         if (maestro.length === 0) {
             return res.json({
+                conclusiones_id: [],
+                conclusiones_otros: '',
+                complicaciones_procedimiento_terapeutico: [],
+                complicaciones_acceso_terapeutico: null,
+                sugerencia_terapeuticas_id: null,
                 cateteres_id: [],
                 guias_id: [],
                 contrastes_id: [],
@@ -305,6 +335,12 @@ const getTerapeuticoBySolicitud = async (req, res) => {
 
         const datosTerapeutico = maestro[0];
         const terapeuticoId = datosTerapeutico.id;
+
+        datosTerapeutico.conclusiones_id = parseRawJsonInput(datosTerapeutico.conclusiones_id);
+        datosTerapeutico.conclusiones_otros = datosTerapeutico.conclusiones_otros || '';
+        datosTerapeutico.complicaciones_procedimiento_terapeutico = parseRawJsonInput(datosTerapeutico.complicaciones_procedimiento_terapeutico);
+        datosTerapeutico.complicaciones_acceso_terapeutico = datosTerapeutico.complicaciones_acceso_terapeutico || null;
+        datosTerapeutico.sugerencia_terapeuticas_id = datosTerapeutico.sugerencia_terapeuticas_id || null;
 
         // Resolver labels faltantes desde tipo_general_materiales para retrocompatibilidad
         const missingIds = collectMissingMaterialIds([

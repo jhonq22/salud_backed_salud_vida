@@ -25,3 +25,13 @@ ADD COLUMN `cat` VARCHAR(50) DEFAULT NULL;
 -- 2. Si la tabla ya tenía los campos previos y solo se desea agregar el campo `cat`:
 ALTER TABLE `cateterismo_terapeutico_hemodinamia`
 ADD COLUMN `cat` VARCHAR(50) NULL DEFAULT NULL;
+
+
+-- =========================================================================
+-- 3. Campos de Conclusiones en Cateterismo Terapéutico (2026-11-23)
+-- Nota: `complicaciones_procedimiento_terapeutico`, `complicaciones_acceso_terapeutico`
+-- y `sugerencia_terapeuticas_id` ya forman parte de la tabla.
+-- =========================================================================
+ALTER TABLE `cateterismo_terapeutico_hemodinamia`
+ADD COLUMN `conclusiones_id` JSON NULL DEFAULT NULL COMMENT 'catalogo_hemodinamia.tipo = CONCLUSIONES_CATETERISMO',
+ADD COLUMN `conclusiones_otros` TEXT NULL DEFAULT NULL;

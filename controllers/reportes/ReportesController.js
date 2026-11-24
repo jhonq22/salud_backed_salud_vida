@@ -367,6 +367,36 @@ getSabanaHemodinamia: async (req, res) => {
             });
         }
 
+        const parseJsonSafe = (raw, fallback = null) => {
+            if (raw === null || raw === undefined || raw === '') return fallback;
+            if (typeof raw !== 'string') return raw;
+            try {
+                return JSON.parse(raw);
+            } catch {
+                return raw;
+            }
+        };
+
+        const [catalogoHemoRows] = await db.query(`SELECT id, nombre FROM catalogo_hemodinamia`);
+        const catHemoMap = new Map(catalogoHemoRows.map(r => [String(r.id), r.nombre]));
+        const resolveHemoCat = (val) => {
+            if (val === null || val === undefined || val === '') return null;
+            const parsed = parseJsonSafe(val, val);
+            if (Array.isArray(parsed)) {
+                if (parsed.length === 0) return null;
+                const labels = parsed
+                    .map(item => (item && typeof item === 'object'
+                        ? (item.label || item.nombre || catHemoMap.get(String(item.value ?? item.id)))
+                        : (catHemoMap.get(String(item)) || item)))
+                    .filter(Boolean);
+                return labels.length > 0 ? labels.join(', ') : null;
+            }
+            if (typeof parsed === 'object') {
+                return parsed.label || parsed.nombre || catHemoMap.get(String(parsed.value ?? parsed.id)) || null;
+            }
+            return catHemoMap.get(String(parsed)) || String(parsed);
+        };
+
         // 0. SOLICITUD OPERACIÓN
         const [solicitudOperacionResult] = await db.query(`
             SELECT 
@@ -412,14 +442,25 @@ getSabanaHemodinamia: async (req, res) => {
             WHERE solicitud_paciente_id = ? LIMIT 1
         `, [solicitud_id]);
 
-        // 2. ANTECEDENTES PERSONALES Y HÁBITOS
-        const [antecedentesResult] = await db.query(`
+        const enfActualRow = enfActualResult[0] || null;
+        const enfActualFormatted = enfActualRow ? {
+            ...enfActualRow,
+            angina_hijo_hemodinamia_id: resolveHemoCat(enfActualRow.angina_hijo_hemodinamia_id),
+            scascest_hemodinamia_hijo_id: resolveHemoCat(enfActualRow.scascest_hemodinamia_hijo_id),
+            disnea_hijo_id: resolveHemoCat(enfActualRow.disnea_hijo_id)
+        } : null;
+
+        // 2. ANTECEDENTES PERSONALES, FAMILIARES Y QUIRÚRGICOS
+        const [antecedentesRows] = await db.query(`
             SELECT 
-                quirurgico, familiares,
+                tipo,
+                quirurgico, descripcion_quirurgico,
+                familiares, descripcion_familiares,
                 hta_hemodinamia, dislipidemia_hemodinamia, erc_hemodinamia, 
                 erc_hemodinamia_hijo,
                 neurologico_conservado_hc_hemodinamia, sincope_hemodinamia, 
-                claudicacion_intermitente_hemodinamia, diabetes_mellitus_hemodinamia, 
+                claudicacion_intermitente_hemodinamia, claudicacion_intermitente_hemodinamia_hijo,
+                diabetes_mellitus_hemodinamia, 
                 diabetes_mellitus_hemodinamia_hijo, tabaquismo_hemodinamia, 
                 tabaquismo_hemodinamia_hijo, antecedentes_cardiopatia_isquemica_hemodinamia, 
                 scasest_angina_inestable_hijo_hemodinamia, im_sin_elevacion_st_hijo_hemodinamia, 
@@ -427,8 +468,27 @@ getSabanaHemodinamia: async (req, res) => {
                 alergia_medicamentos_hemodinamia, alergia_medicamentos_hemodinamia_hijo, 
                 otras_patologias_hemodinamia, otras_patologias_hemodinamia_hijo
             FROM pacientes_antecedentes 
-            WHERE solicitud_paciente_id = ? LIMIT 1
+            WHERE solicitud_paciente_id = ? AND (estatus = 1 OR estatus IS NULL)
         `, [solicitud_id]);
+
+        let antecedentesMerged = null;
+        if (antecedentesRows.length > 0) {
+            const personalesRow = antecedentesRows.find(r => r.tipo === 'PERSONALES') || antecedentesRows[0];
+            const familiaresRow = antecedentesRows.find(r => r.tipo === 'FAMILIARES' || (r.familiares && r.familiares !== '[]') || r.descripcion_familiares) || {};
+            const quirurgicosRow = antecedentesRows.find(r => r.tipo === 'QUIRURGICOS' || (r.quirurgico && r.quirurgico !== '[]') || r.descripcion_quirurgico) || {};
+
+            antecedentesMerged = {
+                ...personalesRow,
+                familiares: familiaresRow.familiares ?? personalesRow.familiares ?? null,
+                descripcion_familiares: familiaresRow.descripcion_familiares ?? personalesRow.descripcion_familiares ?? null,
+                quirurgico: quirurgicosRow.quirurgico ?? personalesRow.quirurgico ?? null,
+                descripcion_quirurgico: quirurgicosRow.descripcion_quirurgico ?? personalesRow.descripcion_quirurgico ?? null,
+                erc_hemodinamia_hijo: resolveHemoCat(personalesRow.erc_hemodinamia_hijo),
+                claudicacion_intermitente_hemodinamia_hijo: resolveHemoCat(personalesRow.claudicacion_intermitente_hemodinamia_hijo),
+                diabetes_mellitus_hemodinamia_hijo: resolveHemoCat(personalesRow.diabetes_mellitus_hemodinamia_hijo),
+                tabaquismo_hemodinamia_hijo: resolveHemoCat(personalesRow.tabaquismo_hemodinamia_hijo)
+            };
+        }
 
         // 3. EXAMEN FÍSICO, SIGNOS VITALES Y LABORATORIOS
         const [fisicoLabsResult] = await db.query(`
@@ -438,7 +498,7 @@ getSabanaHemodinamia: async (req, res) => {
                 ca.nombre AS soplos_areas_id_hemodinamia, 
                 ci.nombre AS soplos_intensidad_id_hemodinamia, 
                 e.crepitantes,
-                cp.nombre AS estado_pulso_id_hemodinamia, 
+                e.estado_pulso_id_hemodinamia,
                 e.vias_acceso_id_hemodinamia,
                 e.hb_hemodinamia, e.hcto_hemodinamia, e.pqt_hemodinamia, e.leu_hemodinamia, 
                 e.glicemia_hemodinamia, e.urea_hemodinamia, e.creatinina_hemodinamia, 
@@ -448,16 +508,24 @@ getSabanaHemodinamia: async (req, res) => {
             FROM examen_fisico_hemodinamia e
             LEFT JOIN catalogo_hemodinamia ca ON e.soplos_areas_id_hemodinamia = ca.id
             LEFT JOIN catalogo_hemodinamia ci ON e.soplos_intensidad_id_hemodinamia = ci.id
-            LEFT JOIN catalogo_hemodinamia cp ON e.estado_pulso_id_hemodinamia = cp.id
             WHERE e.solicitud_paciente_id = ? LIMIT 1
         `, [solicitud_id]);
 
         // 4. PARACLÍNICOS (ECG y RX)
         const [ecgResult] = await db.query(`
             SELECT C.nombre_opcion AS ritmo, E.frecuencia_cardiaca AS fc, 
-                   E.eje_qrs AS eje, E.descripcion_hallazgos AS hallazgos
+                   E.eje_qrs AS eje, E.intervalo_pr AS pr, E.duracion_qrs AS qrs,
+                   E.intervalo_qt AS qt, E.f_qrs, E.f_p, E.q_patologica,
+                   E.crecimiento_cavidades, E.derivacion_afectada_id,
+                   Cst.nombre_opcion AS segmento_st,
+                   Cbr.nombre_opcion AS bloqueo_rama,
+                   Car.nombre_opcion AS arritmias,
+                   E.descripcion_hallazgos AS hallazgos
             FROM paciente_paraclinico_ecg E 
             LEFT JOIN paraclinico_catalogos C ON E.ritmo_id = C.id
+            LEFT JOIN paraclinico_catalogos Cst ON E.segmento_st_id = Cst.id
+            LEFT JOIN paraclinico_catalogos Cbr ON E.bloqueo_rama_id = Cbr.id
+            LEFT JOIN paraclinico_catalogos Car ON E.arritmias_id = Car.id
             WHERE E.solicitud_paciente_id = ? LIMIT 1
         `, [solicitud_id]);
 
@@ -502,29 +570,45 @@ getSabanaHemodinamia: async (req, res) => {
 
         // --- PARSEOS Y LIMPIEZA ---
         let trastornoContractilidad = {};
+        let trastornoContractilidadTexto = null;
         if (ecoResult[0] && ecoResult[0].trastorno_contractilidad_json_hemodinamia) {
-            try {
-                trastornoContractilidad = typeof ecoResult[0].trastorno_contractilidad_json_hemodinamia === 'string' 
-                    ? JSON.parse(ecoResult[0].trastorno_contractilidad_json_hemodinamia) 
-                    : ecoResult[0].trastorno_contractilidad_json_hemodinamia;
-            } catch (e) { console.error("Error parseando eco json", e); }
+            const parsedTrastorno = parseJsonSafe(ecoResult[0].trastorno_contractilidad_json_hemodinamia, {});
+            if (parsedTrastorno && typeof parsedTrastorno === 'object') {
+                trastornoContractilidad = parsedTrastorno;
+                const partes = Object.entries(parsedTrastorno)
+                    .map(([territorioId, condicionId]) => {
+                        const tNombre = resolveHemoCat(territorioId);
+                        const cNombre = resolveHemoCat(condicionId);
+                        return tNombre && cNombre ? `${tNombre}: ${cNombre}` : (tNombre || cNombre || null);
+                    })
+                    .filter(Boolean);
+                if (partes.length > 0) trastornoContractilidadTexto = partes.join(' | ');
+            }
         }
 
+        const ecoRow = ecoResult[0] ? {
+            ...ecoResult[0],
+            induccion_isquemia_tipo_id: resolveHemoCat(ecoResult[0].induccion_isquemia_tipo_id),
+            resultado_isquemia_id: resolveHemoCat(ecoResult[0].resultado_isquemia_id),
+            resultado_viabilidad_id: resolveHemoCat(ecoResult[0].resultado_viabilidad_id),
+            territorio_isquemia_id: resolveHemoCat(ecoResult[0].territorio_isquemia_id),
+            territorio_viabilidad_id: resolveHemoCat(ecoResult[0].territorio_viabilidad_id),
+            estado_funcion_sistolica_id_hemodinamia: resolveHemoCat(ecoResult[0].estado_funcion_sistolica_id_hemodinamia),
+            funcion_sistolica_id_hemodinamia: resolveHemoCat(ecoResult[0].funcion_sistolica_id_hemodinamia),
+            funcion_diastolica_id_hemodinamia: resolveHemoCat(ecoResult[0].funcion_diastolica_id_hemodinamia),
+            trastorno_contractilidad_json_hemodinamia: trastornoContractilidad,
+            trastorno_contractilidad_texto: trastornoContractilidadTexto
+        } : null;
+
         const fisicoData = fisicoLabsResult[0] || {};
-        let viasAccesoParseadas = [];
-        if (fisicoData.vias_acceso_id_hemodinamia) {
-            try {
-                viasAccesoParseadas = typeof fisicoData.vias_acceso_id_hemodinamia === 'string'
-                    ? JSON.parse(fisicoData.vias_acceso_id_hemodinamia)
-                    : fisicoData.vias_acceso_id_hemodinamia;
-            } catch (e) { console.error("Error parseando vias", e); }
-        }
+        const viasAccesoParseadas = parseJsonSafe(fisicoData.vias_acceso_id_hemodinamia, []) || [];
+        const estadoPulsoResuelto = resolveHemoCat(fisicoData.estado_pulso_id_hemodinamia);
 
         // 7. CONSTRUCCIÓN DEL JSON FINAL
         const sabana_hemodinamia_completa = {
             solicitud_operacion: solicitudOperacionResult[0] || null,
-            enfermedad_actual: enfActualResult[0] || null,
-            antecedentes: antecedentesResult[0] || null,
+            enfermedad_actual: enfActualFormatted,
+            antecedentes: antecedentesMerged,
             examen_fisico_laboratorios: {
                 signos_vitales: {
                     peso: fisicoData.peso,
@@ -541,7 +625,7 @@ getSabanaHemodinamia: async (req, res) => {
                     crepitantes: fisicoData.crepitantes
                 },
                 pulsos_arteriales: {
-                    estado_pulso_id: fisicoData.estado_pulso_id_hemodinamia,
+                    estado_pulso_id: estadoPulsoResuelto,
                     vias_acceso_id: viasAccesoParseadas
                 },
                 laboratorios: {
@@ -574,10 +658,7 @@ getSabanaHemodinamia: async (req, res) => {
             paraclinicos: {
                 ecg: ecgResult[0] || null,
                 rx: rxResult[0] || null,
-                eco: ecoResult[0] ? {
-                    ...ecoResult[0],
-                    trastorno_contractilidad_json_hemodinamia: trastornoContractilidad
-                } : null
+                eco: ecoRow
             },
             // NUEVA PROPIEDAD AGREGADA AQUÍ
             indicaciones: indicacionesResult[0] || null 
@@ -635,6 +716,8 @@ reporteCaterismo: async (req, res) => {
                     s.medico_id,
                     s.ayudante_medico_uno_id,
                     s.ayudante_medico_dos_id,
+                    DATE_FORMAT(s.fecha_operacion, '%d/%m/%Y') AS fecha_intervencion,
+                    COALESCE(m.mpps, '') AS medico_mpps,
                     TRIM(REPLACE(CONCAT_WS(' ', m.primerNombre, m.segundoNombre, m.primerApellido, m.segundoApellido), '  ', ' ')) AS nombre_medico,
                     TRIM(REPLACE(CONCAT_WS(' ', ay1.primerNombre, ay1.segundoNombre, ay1.primerApellido, ay1.segundoApellido), '  ', ' ')) AS nombre_ayudante_uno,
                     TRIM(REPLACE(CONCAT_WS(' ', ay2.primerNombre, ay2.segundoNombre, ay2.primerApellido, ay2.segundoApellido), '  ', ' ')) AS nombre_ayudante_dos
@@ -835,6 +918,8 @@ reporteCaterismo: async (req, res) => {
             // 4. CONSTRUCCIÓN DEL JSON FINAL ESTRUCTURADO
             const reporte_cateterismo_completo = {
                 medico_asignado: pacienteData.nombre_medico || 'No asignado', 
+                medico_mpps: pacienteData.medico_mpps || '',
+                fecha_intervencion: pacienteData.fecha_intervencion || '',
                 ayudante_medico_uno_nombre: pacienteData.nombre_ayudante_uno || '',
                 ayudante_medico_dos_nombre: pacienteData.nombre_ayudante_dos || '',
                 paciente: {
@@ -920,6 +1005,8 @@ reporteCaterismo: async (req, res) => {
                     s.medico_id,
                     s.ayudante_medico_uno_id,
                     s.ayudante_medico_dos_id,
+                    DATE_FORMAT(s.fecha_operacion, '%d/%m/%Y') AS fecha_intervencion,
+                    COALESCE(m.mpps, '') AS medico_mpps,
                     TRIM(REPLACE(CONCAT_WS(' ', m.primerNombre, m.segundoNombre, m.primerApellido, m.segundoApellido), '  ', ' ')) AS nombre_medico,
                     TRIM(REPLACE(CONCAT_WS(' ', ay1.primerNombre, ay1.segundoNombre, ay1.primerApellido, ay1.segundoApellido), '  ', ' ')) AS nombre_ayudante_uno,
                     TRIM(REPLACE(CONCAT_WS(' ', ay2.primerNombre, ay2.segundoNombre, ay2.primerApellido, ay2.segundoApellido), '  ', ' ')) AS nombre_ayudante_dos
@@ -1068,6 +1155,7 @@ reporteCaterismo: async (req, res) => {
 
                 const intervencionesItems = parseAndExtractItems(terapeuticoMaster.intervencion_realizada_id);
                 const complicacionesProcItems = parseAndExtractItems(terapeuticoMaster.complicaciones_procedimiento_terapeutico);
+                const conclusionesItems = parseAndExtractItems(terapeuticoMaster.conclusiones_id);
 
                 const arteriasConTipos = detalleResult.map(art => {
                     const tipos_items = parseAndExtractItems(art.tipo_json_hemodinamia);
@@ -1085,6 +1173,20 @@ reporteCaterismo: async (req, res) => {
 
                 terapeuticoMaster.intervenciones_realizadas = intervencionesItems.map(i => resolveCatalogItemLabel(i, catalogosMap)).filter(Boolean);
                 terapeuticoMaster.complicaciones_procedimiento = complicacionesProcItems.map(i => resolveCatalogItemLabel(i, catalogosMap)).filter(Boolean);
+
+                // Resolver conclusiones_id + conclusiones_otros para el reporte terapéutico
+                const conclusionesNombres = conclusionesItems.map(i => resolveCatalogItemLabel(i, catalogosMap)).filter(Boolean);
+                let conclusionTerapFinal = '';
+                if (conclusionesNombres.length > 0) {
+                    conclusionTerapFinal += conclusionesNombres.join('\n');
+                }
+                if (terapeuticoMaster.conclusiones_otros && String(terapeuticoMaster.conclusiones_otros).trim() !== '') {
+                    conclusionTerapFinal = conclusionTerapFinal
+                        ? `${conclusionTerapFinal}\n${String(terapeuticoMaster.conclusiones_otros).trim()}`
+                        : String(terapeuticoMaster.conclusiones_otros).trim();
+                }
+                terapeuticoMaster.conclusiones = conclusionTerapFinal || '';
+                terapeuticoMaster.conclusion = conclusionTerapFinal || '';
 
                 arteriasDetalle = arteriasConTipos.map(art => {
                     const diagInfo = diagArteriasMap[art.arteria_nombre] || {};
@@ -1115,6 +1217,8 @@ reporteCaterismo: async (req, res) => {
                 success: true,
                 data: {
                     medico_asignado: pacienteData.nombre_medico || 'No asignado',
+                    medico_mpps: pacienteData.medico_mpps || '',
+                    fecha_intervencion: pacienteData.fecha_intervencion || '',
                     ayudante_medico_uno_nombre: pacienteData.nombre_ayudante_uno || '',
                     ayudante_medico_dos_nombre: pacienteData.nombre_ayudante_dos || '',
                     paciente: {
@@ -1521,6 +1625,8 @@ getReporteGeneral: async (req, res) => {
                 rs.fecha_operacion,
                 es.nombre_estatus,
                 tp.tipo_operacion AS procedimiento,
+                rs.tipo_operacion_id,
+                rs.marcapaso,
                 IF(rs.tipo_operacion_id IN (1, 3), 'Sí', 'No') AS es_marcapaso
             FROM registrar_solicitud_pacientes rs
             INNER JOIN pacientes p ON rs.paciente_id = p.id
