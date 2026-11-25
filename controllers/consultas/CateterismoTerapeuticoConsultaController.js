@@ -289,10 +289,18 @@ const getReporteTerapeutico = async (req, res) => {
         const [maestroResult] = await db.query(`
             SELECT 
                 -- Datos del paciente
-                p.cedula, p.primer_nombre, p.primer_apellido, p.sexo, p.fecha_nacimiento,
-                -- Datos de la consulta médica
+                p.cedula, p.primer_nombre, p.primer_apellido, p.sexo, p.fecha_nacimiento, p.edad,
+                COALESCE(NULLIF(p.telefono_celular, ''), NULLIF(p.telefono_local, ''), NULLIF(p.telefono_emergencia, ''), '') AS telefono,
+                p.codificacion_buen_gobierno,
+                -- Datos de la consulta médica y solicitud vinculada
                 c.id AS consulta_id, c.fecha_consulta, c.cateterismo,
                 cat_mc.nombre AS motivo_consulta,
+                cs.descripcion AS nombre_hospital,
+                DATE_FORMAT(COALESCE(s.fecha_operacion, c.fecha_consulta), '%d/%m/%Y') AS fecha_intervencion,
+                COALESCE(m.mpps, '') AS medico_mpps,
+                TRIM(REPLACE(CONCAT_WS(' ', m.primerNombre, m.segundoNombre, m.primerApellido, m.segundoApellido), '  ', ' ')) AS nombre_medico,
+                COALESCE(NULLIF(ind.diagnostico, ''), cat_mc.nombre, '') AS diagnostico,
+                COALESCE(cd.cat, '') AS cat,
                 -- Datos Generales Terapéuticos (Pantalla 2)
                 t.id AS terapeutico_id,
                 t.tecnica_cateterismo_terapeutico_id,
@@ -305,6 +313,15 @@ const getReporteTerapeutico = async (req, res) => {
                 t.fecha_creacion
             FROM consultas_medicas c
             LEFT JOIN pacientes p ON c.paciente_id = p.id
+            LEFT JOIN registrar_solicitud_pacientes s ON s.id = (
+                SELECT id FROM registrar_solicitud_pacientes
+                WHERE paciente_id = c.paciente_id
+                ORDER BY id DESC LIMIT 1
+            )
+            LEFT JOIN lista_centro_salud cs ON s.centro_salud_id = cs.id
+            LEFT JOIN registro_medicos m ON s.medico_id = m.id
+            LEFT JOIN indicaciones_implante_nuevos ind ON s.id = ind.solicitud_paciente_id
+            LEFT JOIN cateterismo_diagnostico_hemodinamia cd ON s.id = cd.solicitud_paciente_id AND cd.estatus = 1
             -- El motivo de la consulta sigue viniendo del catálogo general
             LEFT JOIN catalogo_consultas cat_mc ON c.motivo_consulta_id = cat_mc.id
             LEFT JOIN cateterismo_terapeutico_consulta t ON c.id = t.consulta_medica_id

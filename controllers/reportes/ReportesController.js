@@ -46,6 +46,8 @@ const normalizeInsumoReportList = (arr, tipo = 'general', catalogMap = {}) => {
         const normalizedItem = { id, label, cantidad, medida1, medida2 };
         if (tipo === 'cateteres') {
             normalizedItem.unidad = (isObj && item.unidad) ? String(item.unidad).trim() : 'FR';
+        } else if (tipo === 'contrastes' && isObj && item.unidad) {
+            normalizedItem.unidad = String(item.unidad).trim();
         }
         return normalizedItem;
     }).filter(Boolean);
@@ -73,6 +75,10 @@ const formatInsumoReportList = (normArr, tipo = 'general', otrosVal = '') => {
         } else if (tipo === 'balones' && (item.medida1 || item.medida2)) {
             const medidasPart = [item.medida1, item.medida2].filter(Boolean).join(' x ');
             if (medidasPart) extra = ` [${medidasPart}]`;
+        }
+
+        if (tipo === 'contrastes' && String(item.unidad || '').toLowerCase() === 'ml') {
+            return `${baseName}${extra} (${item.cantidad} ml)`;
         }
 
         return `${baseName}${extra} (Cant: ${item.cantidad})`;
@@ -713,6 +719,7 @@ reporteCaterismo: async (req, res) => {
                     COALESCE(NULLIF(p.telefono_celular, ''), NULLIF(p.telefono_local, ''), NULLIF(p.telefono_emergencia, ''), '') AS telefono,
                     p.codificacion_buen_gobierno,
                     ind.diagnostico,
+                    cs.descripcion AS nombre_hospital,
                     s.medico_id,
                     s.ayudante_medico_uno_id,
                     s.ayudante_medico_dos_id,
@@ -723,6 +730,7 @@ reporteCaterismo: async (req, res) => {
                     TRIM(REPLACE(CONCAT_WS(' ', ay2.primerNombre, ay2.segundoNombre, ay2.primerApellido, ay2.segundoApellido), '  ', ' ')) AS nombre_ayudante_dos
                 FROM registrar_solicitud_pacientes s
                 INNER JOIN pacientes p ON s.paciente_id = p.id
+                LEFT JOIN lista_centro_salud cs ON s.centro_salud_id = cs.id
                 LEFT JOIN indicaciones_implante_nuevos ind ON s.id = ind.solicitud_paciente_id
                 LEFT JOIN registro_medicos m ON s.medico_id = m.id
                 LEFT JOIN registro_medicos ay1 ON s.ayudante_medico_uno_id = ay1.id
@@ -917,6 +925,7 @@ reporteCaterismo: async (req, res) => {
 
             // 4. CONSTRUCCIÓN DEL JSON FINAL ESTRUCTURADO
             const reporte_cateterismo_completo = {
+                nombre_hospital: pacienteData.nombre_hospital || '',
                 medico_asignado: pacienteData.nombre_medico || 'No asignado', 
                 medico_mpps: pacienteData.medico_mpps || '',
                 fecha_intervencion: pacienteData.fecha_intervencion || '',
@@ -1002,6 +1011,7 @@ reporteCaterismo: async (req, res) => {
                     p.codificacion_buen_gobierno,
                     tp.tipo_operacion AS procedimiento,
                     ind.diagnostico,
+                    cs.descripcion AS nombre_hospital,
                     s.medico_id,
                     s.ayudante_medico_uno_id,
                     s.ayudante_medico_dos_id,
@@ -1012,6 +1022,7 @@ reporteCaterismo: async (req, res) => {
                     TRIM(REPLACE(CONCAT_WS(' ', ay2.primerNombre, ay2.segundoNombre, ay2.primerApellido, ay2.segundoApellido), '  ', ' ')) AS nombre_ayudante_dos
                 FROM registrar_solicitud_pacientes s
                 INNER JOIN pacientes p ON s.paciente_id = p.id
+                LEFT JOIN lista_centro_salud cs ON s.centro_salud_id = cs.id
                 LEFT JOIN tipo_operaciones tp ON s.tipo_operacion_id = tp.id
                 LEFT JOIN indicaciones_implante_nuevos ind ON s.id = ind.solicitud_paciente_id
                 LEFT JOIN registro_medicos m ON s.medico_id = m.id
@@ -1099,7 +1110,7 @@ reporteCaterismo: async (req, res) => {
 
                 terapeuticoMaster.cateteres_detalle = normalizeInsumoReportList(rawTerapCateteres, 'cateteres', materialMap);
                 terapeuticoMaster.guias_detalle = normalizeInsumoReportList(rawTerapGuias, 'general', materialMap);
-                terapeuticoMaster.contrastes_detalle = normalizeInsumoReportList(rawTerapContrastes, 'general', materialMap);
+                terapeuticoMaster.contrastes_detalle = normalizeInsumoReportList(rawTerapContrastes, 'contrastes', materialMap);
                 terapeuticoMaster.accseso_vascular_detalle = normalizeInsumoReportList(rawTerapAcceso, 'general', materialMap);
                 terapeuticoMaster.balones_detalle = normalizeInsumoReportList(rawTerapBalones, 'balones', materialMap);
                 terapeuticoMaster.stent_detalle = normalizeInsumoReportList(rawTerapStent, 'general', materialMap);
@@ -1108,7 +1119,7 @@ reporteCaterismo: async (req, res) => {
 
                 terapeuticoMaster.cateteres_nombre = formatInsumoReportList(terapeuticoMaster.cateteres_detalle, 'cateteres').join('; ');
                 terapeuticoMaster.guias_nombre = formatInsumoReportList(terapeuticoMaster.guias_detalle, 'general', terapeuticoMaster.otros_guias).join('; ');
-                terapeuticoMaster.contrastes_nombre = formatInsumoReportList(terapeuticoMaster.contrastes_detalle, 'general', terapeuticoMaster.otros_contrastes).join('; ');
+                terapeuticoMaster.contrastes_nombre = formatInsumoReportList(terapeuticoMaster.contrastes_detalle, 'contrastes', terapeuticoMaster.otros_contrastes).join('; ');
                 terapeuticoMaster.accseso_vascular_nombre = formatInsumoReportList(terapeuticoMaster.accseso_vascular_detalle, 'general', terapeuticoMaster.otros_vascular_acccessos).join('; ');
                 terapeuticoMaster.balones_nombre = formatInsumoReportList(terapeuticoMaster.balones_detalle, 'balones').join('; ');
                 terapeuticoMaster.stent_nombre = formatInsumoReportList(terapeuticoMaster.stent_detalle, 'general').join('; ');
@@ -1216,6 +1227,7 @@ reporteCaterismo: async (req, res) => {
             res.json({
                 success: true,
                 data: {
+                    nombre_hospital: pacienteData.nombre_hospital || '',
                     medico_asignado: pacienteData.nombre_medico || 'No asignado',
                     medico_mpps: pacienteData.medico_mpps || '',
                     fecha_intervencion: pacienteData.fecha_intervencion || '',
