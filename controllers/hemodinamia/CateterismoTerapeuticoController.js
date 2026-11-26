@@ -50,7 +50,7 @@ const serializeInsumoJson = (rawInput, tipo = 'general') => {
             };
         }
 
-        if (tipo === 'balones') {
+        if (tipo === 'balones' || tipo === 'stent') {
             return {
                 id,
                 label,
@@ -172,7 +172,7 @@ const saveTerapeutico = async (req, res) => {
         const contrastesJson = serializeInsumoJson(contrastes_id, 'general');
         const accsesoVascularJson = serializeInsumoJson(accseso_vascular_id, 'general');
         const balonesJson = serializeInsumoJson(balones_id, 'balones');
-        const stentJson = serializeInsumoJson(stent_id, 'general');
+        const stentJson = serializeInsumoJson(stent_id, 'stent');
         const medicamentosJson = serializeInsumoJson(medicamentos_utilizados_id, 'general');
         const materialQuirurgicoJson = serializeInsumoJson(material_medico_quirurgico_id, 'general');
 
@@ -368,7 +368,7 @@ const getTerapeuticoBySolicitud = async (req, res) => {
         datosTerapeutico.contrastes_id = normalizeInsumoJson(datosTerapeutico.contrastes_id, 'general', catalogMap);
         datosTerapeutico.accseso_vascular_id = normalizeInsumoJson(datosTerapeutico.accseso_vascular_id, 'general', catalogMap);
         datosTerapeutico.balones_id = normalizeInsumoJson(datosTerapeutico.balones_id, 'balones', catalogMap);
-        datosTerapeutico.stent_id = normalizeInsumoJson(datosTerapeutico.stent_id, 'general', catalogMap);
+        datosTerapeutico.stent_id = normalizeInsumoJson(datosTerapeutico.stent_id, 'stent', catalogMap);
         datosTerapeutico.medicamentos_utilizados_id = normalizeInsumoJson(datosTerapeutico.medicamentos_utilizados_id, 'general', catalogMap);
         datosTerapeutico.material_medico_quirurgico_id = normalizeInsumoJson(datosTerapeutico.material_medico_quirurgico_id, 'general', catalogMap);
 

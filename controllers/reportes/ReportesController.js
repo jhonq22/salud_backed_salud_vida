@@ -72,7 +72,7 @@ const formatInsumoReportList = (normArr, tipo = 'general', otrosVal = '') => {
                 : '';
             const medidasPart = [item.medida1, m2Clean ? `${m2Clean} ${unidad}` : ''].filter(Boolean).join(', ');
             if (medidasPart) extra = ` [${medidasPart}]`;
-        } else if (tipo === 'balones' && (item.medida1 || item.medida2)) {
+        } else if ((tipo === 'balones' || tipo === 'stent') && (item.medida1 || item.medida2)) {
             const medidasPart = [item.medida1, item.medida2].filter(Boolean).join(' x ');
             if (medidasPart) extra = ` [${medidasPart}]`;
         }
@@ -881,6 +881,7 @@ reporteCaterismo: async (req, res) => {
                 const rawDiagCateteres = parseInsumosReportRaw(cateterismoMaster.cateteres_id, diagMatIds);
                 const rawDiagGuias = parseInsumosReportRaw(cateterismoMaster.guias_id, diagMatIds);
                 const rawDiagContrastes = parseInsumosReportRaw(cateterismoMaster.contrastes_id, diagMatIds);
+                const rawDiagAcceso = parseInsumosReportRaw(cateterismoMaster.accseso_vascular_id, diagMatIds);
                 const rawDiagVentriculografia = parseInsumosReportRaw(cateterismoMaster.ventriculografia_id, diagMatIds);
                 const rawDiagMeds = parseInsumosReportRaw(cateterismoMaster.medicamentos_utilizados_id, diagMatIds);
                 const rawDiagMats = parseInsumosReportRaw(cateterismoMaster.material_medico_quirurgico_id, diagMatIds);
@@ -901,6 +902,7 @@ reporteCaterismo: async (req, res) => {
                 cateterismoMaster.cateteres_detalle = normalizeInsumoReportList(rawDiagCateteres, 'cateteres', matMap);
                 cateterismoMaster.guias_detalle = normalizeInsumoReportList(rawDiagGuias, 'general', matMap);
                 cateterismoMaster.contrastes_detalle = normalizeInsumoReportList(rawDiagContrastes, 'general', matMap);
+                cateterismoMaster.accseso_vascular_detalle = normalizeInsumoReportList(rawDiagAcceso, 'general', matMap);
                 cateterismoMaster.ventriculografia_detalle = normalizeInsumoReportList(rawDiagVentriculografia, 'general', matMap);
                 cateterismoMaster.medicamentos_utilizados_detalle = normalizeInsumoReportList(rawDiagMeds, 'general', matMap);
                 cateterismoMaster.material_quirurgico_detalle = normalizeInsumoReportList(rawDiagMats, 'general', matMap);
@@ -908,6 +910,7 @@ reporteCaterismo: async (req, res) => {
                 cateterismoMaster.cateteres_nombre = formatInsumoReportList(cateterismoMaster.cateteres_detalle, 'cateteres').join('; ');
                 cateterismoMaster.guias_nombre = formatInsumoReportList(cateterismoMaster.guias_detalle, 'general', cateterismoMaster.otros_guias).join('; ');
                 cateterismoMaster.contrastes_nombre = formatInsumoReportList(cateterismoMaster.contrastes_detalle, 'general', cateterismoMaster.otros_contrastes).join('; ');
+                cateterismoMaster.accseso_vascular_nombre = formatInsumoReportList(cateterismoMaster.accseso_vascular_detalle, 'general', cateterismoMaster.otros_vascular_acccessos).join('; ');
                 cateterismoMaster.ventriculografia_nombre = formatInsumoReportList(cateterismoMaster.ventriculografia_detalle, 'general').join('; ');
                 cateterismoMaster.medicamentos_utilizados_nombres = formatInsumoReportList(cateterismoMaster.medicamentos_utilizados_detalle, 'general', cateterismoMaster.otros_medicamentos_utilizados);
                 cateterismoMaster.material_quirurgico_nombres = formatInsumoReportList(cateterismoMaster.material_quirurgico_detalle, 'general');
@@ -1113,7 +1116,7 @@ reporteCaterismo: async (req, res) => {
                 terapeuticoMaster.contrastes_detalle = normalizeInsumoReportList(rawTerapContrastes, 'contrastes', materialMap);
                 terapeuticoMaster.accseso_vascular_detalle = normalizeInsumoReportList(rawTerapAcceso, 'general', materialMap);
                 terapeuticoMaster.balones_detalle = normalizeInsumoReportList(rawTerapBalones, 'balones', materialMap);
-                terapeuticoMaster.stent_detalle = normalizeInsumoReportList(rawTerapStent, 'general', materialMap);
+                terapeuticoMaster.stent_detalle = normalizeInsumoReportList(rawTerapStent, 'stent', materialMap);
                 terapeuticoMaster.medicamentos_utilizados_detalle = normalizeInsumoReportList(rawMeds, 'general', materialMap);
                 terapeuticoMaster.material_quirurgico_detalle = normalizeInsumoReportList(rawMats, 'general', materialMap);
 
@@ -1122,7 +1125,7 @@ reporteCaterismo: async (req, res) => {
                 terapeuticoMaster.contrastes_nombre = formatInsumoReportList(terapeuticoMaster.contrastes_detalle, 'contrastes', terapeuticoMaster.otros_contrastes).join('; ');
                 terapeuticoMaster.accseso_vascular_nombre = formatInsumoReportList(terapeuticoMaster.accseso_vascular_detalle, 'general', terapeuticoMaster.otros_vascular_acccessos).join('; ');
                 terapeuticoMaster.balones_nombre = formatInsumoReportList(terapeuticoMaster.balones_detalle, 'balones').join('; ');
-                terapeuticoMaster.stent_nombre = formatInsumoReportList(terapeuticoMaster.stent_detalle, 'general').join('; ');
+                terapeuticoMaster.stent_nombre = formatInsumoReportList(terapeuticoMaster.stent_detalle, 'stent').join('; ');
                 terapeuticoMaster.medicamentos_utilizados_nombres = formatInsumoReportList(terapeuticoMaster.medicamentos_utilizados_detalle, 'general', terapeuticoMaster.otros_medicamentos_utilizados);
                 terapeuticoMaster.material_quirurgico_nombres = formatInsumoReportList(terapeuticoMaster.material_quirurgico_detalle, 'general');
 

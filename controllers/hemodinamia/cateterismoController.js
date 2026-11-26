@@ -129,6 +129,8 @@ const saveCateterismo = async (req, res) => {
         otros_guias,
         contrastes_id,
         otros_contrastes,
+        accseso_vascular_id,
+        otros_vascular_acccessos,
         cantidad,
         ventriculografia_id,
         medicamentos_utilizados_id,
@@ -163,6 +165,7 @@ const saveCateterismo = async (req, res) => {
         const cateteresJson = serializeInsumoJson(cateteres_id, 'cateteres');
         const guiasJson = serializeInsumoJson(guias_id, 'general');
         const contrastesJson = serializeInsumoJson(contrastes_id, 'general');
+        const accsesoVascularJson = serializeInsumoJson(accseso_vascular_id, 'general');
         const ventriculografiaJson = serializeInsumoJson(ventriculografia_id, 'general');
         const medicamentosJson = serializeInsumoJson(medicamentos_utilizados_id, 'general');
         const materialQuirurgicoJson = serializeInsumoJson(material_medico_quirurgico_id, 'general');
@@ -173,7 +176,7 @@ const saveCateterismo = async (req, res) => {
             return isNaN(parsed) ? null : parsed;
         };
 
-        const parsedCantidad = parseNumOrNull(cantidad);
+        const parsedCantidad = null;
         const parsedSyntax = parseNumOrNull(syntax);
         const parsedCat = (cat !== undefined && cat !== null && String(cat).trim() !== '')
             ? String(cat).trim().slice(0, 50)
@@ -197,6 +200,8 @@ const saveCateterismo = async (req, res) => {
                     otros_guias = ?,
                     contrastes_id = ?,
                     otros_contrastes = ?,
+                    accseso_vascular_id = ?,
+                    otros_vascular_acccessos = ?,
                     cantidad = ?,
                     ventriculografia_id = ?,
                     medicamentos_utilizados_id = ?,
@@ -219,6 +224,8 @@ const saveCateterismo = async (req, res) => {
                     otros_guias || null,
                     contrastesJson,
                     otros_contrastes || null,
+                    accsesoVascularJson,
+                    otros_vascular_acccessos || null,
                     parsedCantidad,
                     ventriculografiaJson,
                     medicamentosJson,
@@ -240,8 +247,8 @@ const saveCateterismo = async (req, res) => {
             // 4. Si no existe, hacemos INSERT del maestro
             const [result] = await db.query(
                 `INSERT INTO cateterismo_diagnostico_hemodinamia 
-                (solicitud_paciente_id, dominancia_id, descripcion, complicaciones_procedimiento, complicaciones_acceso, conclusiones_id, conclusiones_otros, sugerencia_diagnostico_id, cateteres_id, guias_id, otros_guias, contrastes_id, otros_contrastes, cantidad, ventriculografia_id, medicamentos_utilizados_id, otros_medicamentos_utilizados, material_medico_quirurgico_id, syntax, cat) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+                (solicitud_paciente_id, dominancia_id, descripcion, complicaciones_procedimiento, complicaciones_acceso, conclusiones_id, conclusiones_otros, sugerencia_diagnostico_id, cateteres_id, guias_id, otros_guias, contrastes_id, otros_contrastes, accseso_vascular_id, otros_vascular_acccessos, cantidad, ventriculografia_id, medicamentos_utilizados_id, otros_medicamentos_utilizados, material_medico_quirurgico_id, syntax, cat) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
                 [
                     solicitud_paciente_id, 
                     dominancia_id || null, 
@@ -256,6 +263,8 @@ const saveCateterismo = async (req, res) => {
                     otros_guias || null,
                     contrastesJson,
                     otros_contrastes || null,
+                    accsesoVascularJson,
+                    otros_vascular_acccessos || null,
                     parsedCantidad,
                     ventriculografiaJson,
                     medicamentosJson,
@@ -319,6 +328,7 @@ const getCateterismoBySolicitud = async (req, res) => {
             cateterismo.cateteres_id,
             cateterismo.guias_id,
             cateterismo.contrastes_id,
+            cateterismo.accseso_vascular_id,
             cateterismo.ventriculografia_id,
             cateterismo.medicamentos_utilizados_id,
             cateterismo.material_medico_quirurgico_id
@@ -336,6 +346,7 @@ const getCateterismoBySolicitud = async (req, res) => {
         cateterismo.cateteres_id = normalizeInsumoJson(cateterismo.cateteres_id, 'cateteres', catalogMap);
         cateterismo.guias_id = normalizeInsumoJson(cateterismo.guias_id, 'general', catalogMap);
         cateterismo.contrastes_id = normalizeInsumoJson(cateterismo.contrastes_id, 'general', catalogMap);
+        cateterismo.accseso_vascular_id = normalizeInsumoJson(cateterismo.accseso_vascular_id, 'general', catalogMap);
         cateterismo.ventriculografia_id = normalizeInsumoJson(cateterismo.ventriculografia_id, 'general', catalogMap);
         cateterismo.medicamentos_utilizados_id = normalizeInsumoJson(cateterismo.medicamentos_utilizados_id, 'general', catalogMap);
         cateterismo.material_medico_quirurgico_id = normalizeInsumoJson(cateterismo.material_medico_quirurgico_id, 'general', catalogMap);
