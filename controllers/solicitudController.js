@@ -609,8 +609,11 @@ const finalizarVerificacion = async (req, res) => {
     const camposActualizar = [];
     const valores = [];
 
-    // 2. Validación dinámica para tipo_marca_paso_id
-    if (tipo_operacion_id !== undefined) { camposActualizar.push('tipo_operacion_id = ?'); valores.push(tipo_operacion_id); }
+    // 2. Validación dinámica para tipo_operacion_id (evitar dejarlo en NULL al enviar a reevaluación)
+    if (tipo_operacion_id !== undefined && tipo_operacion_id !== null) {
+        camposActualizar.push('tipo_operacion_id = ?');
+        valores.push(tipo_operacion_id);
+    }
     if (estatus_solicitud_id !== undefined) { camposActualizar.push('estatus_solicitud_id = ?'); valores.push(estatus_solicitud_id); }
     if (observacion_general !== undefined) { camposActualizar.push('observacion_general = ?'); valores.push(observacion_general); }
     if (fecha_operacion !== undefined) { camposActualizar.push('fecha_operacion = ?'); valores.push(fecha_operacion); }
@@ -816,7 +819,14 @@ const PacientesConSolicitudes = async (req, res) => {
                 p.telefono_local,
                 s.tipo_marca_paso_id, 
                 s.tipo_operacion_id,
-                IFNULL(tp.tipo_operacion, 'Sin tipo operacion') AS tipo_operacion,
+                COALESCE(
+                    tp.tipo_operacion,
+                    CASE
+                        WHEN s.marcapaso = 1 THEN 'Marcapasos'
+                        WHEN s.marcapaso = 0 THEN 'Hemodinamia'
+                        ELSE 'Sin tipo operacion'
+                    END
+                ) AS tipo_operacion,
                 DATE_FORMAT(s.fecha_cita, '%d/%m/%y') AS fecha_cita,
                 es.nombre_estatus AS estatus_nombre,
                 cs.descripcion AS centro_salud_nombre
@@ -949,7 +959,14 @@ const PacientesConSolicitudesActualizados = async (req, res) => {
                 s.tipo_operacion_id,
                 s.marcapaso,
                 s.estatus_solicitud_id,
-                tp.tipo_operacion,
+                COALESCE(
+                    tp.tipo_operacion,
+                    CASE
+                        WHEN s.marcapaso = 1 THEN 'Marcapasos'
+                        WHEN s.marcapaso = 0 THEN 'Hemodinamia'
+                        ELSE NULL
+                    END
+                ) AS tipo_operacion,
                 DATE_FORMAT(s.fecha_cita, '%d/%m/%y') AS fecha_cita,
                 es.nombre_estatus AS estatus_nombre,
                 cs.descripcion AS centro_salud_nombre
